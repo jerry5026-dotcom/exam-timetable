@@ -204,7 +204,7 @@
     <div class="row g-3 mb-3">
       <div class="col-md-4">
         <label class="form-label fw-semibold">학년도</label>
-        <input type="number" class="form-control form-control-sm" id="schoolYear" value="2026">
+        <input type="number" class="form-control form-control-sm" id="schoolYear" value="">
       </div>
       <div class="col-md-4">
         <label class="form-label fw-semibold">학기</label>
@@ -426,10 +426,22 @@ let G = {
 // 초기화
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-  addDate('2026-04-21');
-  addDate('2026-04-22');
-  addDate('2026-04-23');
-  addDate('2026-04-24');
+  // 학년도: 현재 연도로 자동 설정
+  document.getElementById('schoolYear').value = new Date().getFullYear();
+
+  // 시험 날짜: 오늘로부터 2주 후 월~목 자동 설정
+  const twoWeeksLater = new Date();
+  twoWeeksLater.setDate(twoWeeksLater.getDate() + 14);
+  const dow = twoWeeksLater.getDay(); // 0=일, 1=월
+  const diffToMon = (dow === 0) ? 1 : (dow === 1 ? 0 : 8 - dow);
+  const monday = new Date(twoWeeksLater);
+  monday.setDate(twoWeeksLater.getDate() + diffToMon);
+  const fmt = d => d.toISOString().slice(0, 10);
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    addDate(fmt(d));
+  }
   addPeriod('1', '08:50~09:40');
   addPeriod('2', '10:00~10:50');
   addPeriod('3', '11:10~12:00');
