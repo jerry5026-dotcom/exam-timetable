@@ -1,0 +1,2587 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시험 시간표 자동 생성기</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+<style>
+  :root {
+    --primary: #1a56db;
+    --primary-light: #e8f0fe;
+    --success: #0e9f6e;
+    --danger: #e02424;
+    --gray: #6b7280;
+    --border: #e5e7eb;
+  }
+  body { background: #f8fafc; font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; font-size: 14px; }
+  .step-card {
+    background: #fff; border-radius: 12px; border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 20px;
+  }
+  .step-header {
+    background: var(--primary-light); border-bottom: 1px solid #c7d7f5;
+    padding: 14px 20px; border-radius: 12px 12px 0 0;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .step-num {
+    background: var(--primary); color: #fff;
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; flex-shrink: 0;
+  }
+  .step-body { padding: 20px; }
+  .upload-zone {
+    border: 2px dashed #93c5fd; border-radius: 10px;
+    padding: 30px; text-align: center; cursor: pointer;
+    transition: all 0.2s; background: #f0f7ff;
+  }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: #e0efff; }
+  .upload-zone .icon { font-size: 36px; }
+  .badge-subject {
+    display: inline-block; background: #e0e7ff; color: #3730a3;
+    border-radius: 20px; padding: 3px 10px; margin: 2px; font-size: 12px;
+  }
+  .date-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .period-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .timetable-grid { border-collapse: collapse; width: 100%; }
+  .timetable-grid th, .timetable-grid td {
+    border: 1px solid var(--border); padding: 10px 14px; text-align: center; min-width: 100px;
+  }
+  .timetable-grid th { background: #1a56db; color: #fff; font-weight: 600; }
+  .timetable-grid td { background: #f8fafc; }
+  .timetable-grid td.has-subject { background: #fff; }
+  .subject-cell {
+    background: #e0e7ff; border-radius: 6px; padding: 4px 8px;
+    font-size: 12px; display: inline-block; margin: 1px;
+  }
+  .fix-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+  .status-box {
+    padding: 12px 16px; border-radius: 8px; margin: 8px 0;
+    font-size: 13px; display: flex; align-items: center; gap: 8px;
+  }
+  .status-ok { background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46; }
+  .status-warn { background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; }
+  .status-err { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+  .btn-primary-custom {
+    background: var(--primary); color: #fff; border: none;
+    padding: 10px 24px; border-radius: 8px; font-size: 14px;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .btn-primary-custom:hover { background: #1648c0; }
+  .btn-success-custom {
+    background: var(--success); color: #fff; border: none;
+    padding: 9px 20px; border-radius: 8px; font-size: 13px;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .btn-success-custom:hover { background: #0c8a5f; }
+  .preview-section { display: none; }
+  .spinner { display: none; }
+  .top-bar {
+    background: var(--primary); color: #fff; padding: 14px 24px;
+    display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+  }
+  .top-bar h1 { font-size: 20px; font-weight: 700; margin: 0; }
+  .section-title { font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+  small.hint { color: var(--gray); font-size: 12px; }
+  #conflictTable td { font-size: 12px; }
+  .room-tag {
+    display: inline-block; background: #d1fae5; color: #065f46;
+    border-radius: 4px; padding: 1px 6px; margin: 1px; font-size: 11px;
+  }
+  .loading-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,255,255,0.8); z-index: 9999;
+    display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+  }
+  .draggable-subject {
+    cursor: grab; transition: opacity 0.15s, box-shadow 0.15s;
+  }
+  .draggable-subject:hover { box-shadow: 0 2px 6px rgba(26,86,219,0.25); }
+  .draggable-subject.dragging { opacity: 0.4; cursor: grabbing; }
+  .drag-target { transition: background 0.15s; }
+  .drag-target.drag-over { background: #dbeafe !important; outline: 2px dashed #1a56db; }
+  .save-bar {
+    background:#fff;border:1px solid var(--border);border-radius:10px;
+    padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner-border text-primary" style="width:3rem;height:3rem;"></div>
+  <div style="font-size:15px;color:#1a56db;font-weight:600;">시간표 생성 중...</div>
+</div>
+
+<div class="top-bar">
+  <div>📅</div>
+  <h1>시험 시간표 자동 생성기</h1>
+  <small style="opacity:0.8;margin-left:8px;">학생 수강정보 → 시험 시간표 자동 배정</small>
+</div>
+
+<div class="container-lg" style="max-width:960px;">
+
+<!-- ===== 저장 / 불러오기 바 ===== -->
+<div class="save-bar">
+  <span style="font-weight:700;font-size:13px;color:var(--primary);white-space:nowrap;">💾 작업 저장</span>
+  <input type="text" id="saveNameInput" class="form-control form-control-sm" placeholder="저장 이름 (예: 2026 1학기 1회고사)" style="max-width:240px;">
+  <button class="btn btn-sm btn-primary" onclick="saveWork()">저장</button>
+  <div style="width:1px;height:24px;background:var(--border);margin:0 4px;"></div>
+  <input type="file" id="loadFileInput" accept=".json" style="display:none;" onchange="loadWorkFromFile(this)">
+  <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('loadFileInput').click()">파일 열기</button>
+  <div id="currentFileTag" style="display:none;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:3px 12px;font-size:12px;color:#1e40af;white-space:nowrap;margin-left:4px;">
+    <span style="font-size:14px;">📄</span>
+    <span id="currentFileName" style="font-weight:600;"></span>
+    <span id="currentFileSavedAt" style="color:#6b7280;font-size:11px;"></span>
+  </div>
+</div>
+
+<!-- ===== STEP 1: 수강정보 업로드 ===== -->
+<div class="step-card">
+  <div class="step-header">
+    <div class="step-num">1</div>
+    <div>
+      <div class="section-title">수강 정보 엑셀 업로드</div>
+      <small class="hint">학생별 수강 과목 정보가 담긴 엑셀 파일을 업로드하세요</small>
+    </div>
+  </div>
+  <div class="step-body">
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">엑셀 형식 선택</label>
+        <select class="form-select form-select-sm" id="excelFormat">
+          <option value="wide">가로형: 반|번호|학번|이름|과목1|과목2|... (○ 또는 값 표시)</option>
+          <option value="long">세로형: 반|번호|학번|이름|과목명 (한 행=한 과목)</option>
+        </select>
+        <small class="hint mt-1 d-block">
+          📌 가로형 예시: A열=반, B열=번호, C열=학번, D열=이름, E열부터 과목명 (○,✓,값 있으면 수강)
+        </small>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">시트 이름 (선택)</label>
+        <input type="text" class="form-control form-control-sm" id="sheetName" placeholder="비워두면 첫 번째 시트 사용">
+        <small class="hint mt-1 d-block">특정 시트를 지정하려면 시트 이름 입력</small>
+      </div>
+    </div>
+
+    <div class="mb-2 d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-outline-secondary" onclick="downloadTemplate('wide')">
+        📥 수강정보 양식 다운로드 - 가로형
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="downloadTemplate('long')">
+        📥 수강정보 양식 다운로드 - 세로형
+      </button>
+    </div>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+      <div class="icon mb-2">📁</div>
+      <div class="fw-semibold">클릭하거나 파일을 여기로 드래그</div>
+      <div class="text-muted mt-1" style="font-size:13px;">.xlsx, .xls 파일 지원</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleFileUpload(this)">
+    </div>
+
+    <div id="uploadResult" style="display:none;margin-top:16px;">
+      <div id="uploadStatus"></div>
+      <div id="subjectList" style="margin-top:10px;"></div>
+      <div id="dataPreview" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STEP 2: 시험 기본 설정 ===== -->
+<div class="step-card">
+  <div class="step-header">
+    <div class="step-num">2</div>
+    <div>
+      <div class="section-title">시험 기본 설정</div>
+      <small class="hint">시험 이름, 날짜, 교시 정보를 입력하세요</small>
+    </div>
+  </div>
+  <div class="step-body">
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">학년도</label>
+        <input type="number" class="form-control form-control-sm" id="schoolYear" value="2026">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">학기</label>
+        <select class="form-select form-select-sm" id="semester">
+          <option value="1">1학기</option>
+          <option value="2">2학기</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">고사 구분</label>
+        <select class="form-select form-select-sm" id="examNum">
+          <option value="1">1회고사</option>
+          <option value="2">2회고사</option>
+        </select>
+      </div>
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">학년</label>
+        <select class="form-select form-select-sm" id="grade">
+          <option value="1">1학년</option>
+          <option value="2" selected>2학년</option>
+          <option value="3">3학년</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">시험실 최대 인원</label>
+        <input type="number" class="form-control form-control-sm" id="maxPerRoom" value="28" min="1" max="50">
+      </div>
+    </div>
+
+    <hr style="margin:16px 0;">
+    <label class="form-label fw-semibold">시험실</label>
+    <small class="hint d-block mb-2">시험에 사용할 교실을 입력하세요. 자습실로 사용할 교실은 "자습실" 체크박스를 선택하세요.</small>
+    <div id="roomList" class="d-flex flex-wrap gap-2 mb-2"></div>
+    <button class="btn btn-sm btn-outline-primary mt-1" onclick="addRoom()">+ 교실 추가</button>
+
+    <hr style="margin:16px 0;">
+    <!-- 시험 날짜 -->
+    <label class="form-label fw-semibold">시험 날짜</label>
+    <small class="hint d-block mb-2">달력에서 날짜를 선택하면 자동으로 한국어 형식으로 표시됩니다</small>
+    <div id="dateList"></div>
+    <button class="btn btn-sm btn-outline-primary mt-1" onclick="addDate()">+ 날짜 추가</button>
+
+    <hr style="margin:20px 0;">
+
+    <!-- 교시 설정 -->
+    <label class="form-label fw-semibold">교시별 시간</label>
+    <small class="hint d-block mb-2">교시 수와 각 교시 시간을 입력하세요</small>
+    <div id="periodList"></div>
+    <button class="btn btn-sm btn-outline-primary mt-1" onclick="addPeriod()">+ 교시 추가</button>
+
+    <hr style="margin:16px 0;">
+    <label class="form-label fw-semibold">핵심 과목 그룹 (같은 날 배정 금지)</label>
+    <small class="hint d-block mb-2">그룹 내 과목들은 같은 날 시험을 볼 수 없습니다. 쉼표로 구분, 부분 일치 허용 (예: "수학" → 수학Ⅰ, 수학Ⅱ 모두 포함)</small>
+    <div id="coreGroupList" class="d-flex flex-column gap-2 mb-2"></div>
+    <button class="btn btn-sm btn-outline-primary" onclick="addCoreGroup()">+ 그룹 추가</button>
+
+    <hr style="margin:16px 0;">
+    <label class="form-label fw-semibold">동시 배정 옵션</label>
+    <div class="form-check mt-1">
+      <input class="form-check-input" type="checkbox" id="allowSameSlot">
+      <label class="form-check-label" for="allowSameSlot" style="font-size:13px;">
+        학생이 겹치지 않는 과목은 같은 날짜·교시에 <strong>동시 배정 허용</strong>
+        <small class="hint d-block">체크 해제 시: 모든 과목을 빈 슬롯에 먼저 배정 (슬롯당 1과목 선호)</small>
+      </label>
+    </div>
+    <div class="form-check mt-2">
+      <input class="form-check-input" type="checkbox" id="noLoneExamDay">
+      <label class="form-check-label" for="noLoneExamDay" style="font-size:13px;">
+        하루 <strong>모든 교시</strong>를 시험으로 채우는 학생이 없도록 배정 선호
+        <small class="hint d-block">체크 시: 설정된 교시 수 기준으로 하루 전체 교시에 시험을 보는 학생이 최소화되도록 배정합니다. (예: 3교시 설정 → 하루 3과목 최소화)</small>
+      </label>
+    </div>
+    <div class="form-check mt-2">
+      <input class="form-check-input" type="checkbox" id="spreadExamDays">
+      <label class="form-check-label" for="spreadExamDays" style="font-size:13px;">
+        하루에 최소 <strong>1과목</strong>씩 고르게 배정 선호
+        <small class="hint d-block">체크 시: 각 시험 날짜에 고르게 1과목 이상 배정되도록 과목을 분산합니다.</small>
+      </label>
+    </div>
+
+    <hr style="margin:16px 0;">
+    <label class="form-label fw-semibold">자습 슬롯 지정 (선택)</label>
+    <small class="hint d-block mb-2">시험 없이 자습으로 운영할 날짜+교시를 체크하세요 (날짜/교시 입력 후 아래 버튼 클릭)</small>
+    <button class="btn btn-sm btn-outline-secondary" onclick="updateStudySection()">🔄 자습 슬롯 목록 새로고침</button>
+    <div id="studySlotSection" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<!-- ===== STEP 3: 과목 고정 배정 ===== -->
+<div class="step-card">
+  <div class="step-header">
+    <div class="step-num">3</div>
+    <div>
+      <div class="section-title">과목 고정 배정 (선택)</div>
+      <small class="hint">특정 과목을 특정 날짜/교시에 고정 배정하려면 설정하세요</small>
+    </div>
+  </div>
+  <div class="step-body">
+    <div class="mb-2">
+      <button class="btn btn-sm btn-outline-primary" onclick="updateFixedSection()">
+        🔄 과목 목록 새로고침 (수강정보 업로드 또는 날짜/교시 변경 후 클릭)
+      </button>
+    </div>
+    <div id="fixedAssignSection">
+      <div class="status-box status-warn">
+        ⚠️ 수강 정보를 먼저 업로드하고 날짜/교시를 입력한 후 위 버튼을 클릭하세요.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STEP 4: 시간표 생성 ===== -->
+<div class="step-card">
+  <div class="step-header">
+    <div class="step-num">4</div>
+    <div>
+      <div class="section-title">시간표 생성</div>
+      <small class="hint">설정 완료 후 아래 버튼을 클릭하세요</small>
+    </div>
+  </div>
+  <div class="step-body">
+    <button class="btn-primary-custom" onclick="generateSchedule()">🚀 시간표 자동 생성</button>
+    <div id="generateResult" style="margin-top:16px;"></div>
+
+    <!-- 결과 미리보기 -->
+    <div class="preview-section" id="previewSection" style="margin-top:20px;">
+      <hr>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <h5 class="fw-bold mb-0">📋 전체 시험 시간표 미리보기</h5>
+        <button class="btn btn-sm btn-outline-primary" onclick="generateSchedule()">🔄 시간표 다시 생성</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="timetable-grid" id="previewTable"></table>
+      </div>
+      <div id="conflictReport" style="margin-top:16px;"></div>
+      <div id="loadReport" style="margin-top:16px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STEP 5: 다운로드 ===== -->
+<div class="step-card" id="downloadSection" style="display:none;">
+  <div class="step-header">
+    <div class="step-num">5</div>
+    <div>
+      <div class="section-title">엑셀 파일 다운로드</div>
+      <small class="hint">생성된 시간표를 엑셀 파일로 다운로드하세요</small>
+    </div>
+  </div>
+  <div class="step-body">
+    <!-- 통합 다운로드 (권장) -->
+    <div style="border:2px solid var(--primary);border-radius:10px;padding:16px;margin-bottom:16px;background:#f0f7ff;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="font-size:28px;">📦</span>
+        <div>
+          <div class="fw-semibold" style="font-size:15px;">통합 파일 다운로드 <span style="background:#1a56db;color:#fff;font-size:11px;border-radius:4px;padding:2px 7px;margin-left:4px;">권장</span></div>
+          <div style="font-size:12px;color:var(--gray);">시험시간표 + 이동시간표DB + 개인시간표조회(수식) + 과목별현황 — 1개 파일</div>
+        </div>
+        <button class="btn-primary-custom" style="margin-left:auto;white-space:nowrap;" onclick="downloadCombined()">⬇ 통합 다운로드</button>
+      </div>
+      <small style="color:#1a56db;font-size:12px;">💡 개인시간표조회 시트: G3셀에 학생 이름을 입력하면 개인 시험 일정이 자동으로 표시됩니다 (INDEX/MATCH 수식 적용)</small>
+    </div>
+    <!-- 개별 다운로드 -->
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div style="border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:6px;">📊</div>
+          <div class="fw-semibold mb-1" style="font-size:13px;">전체 시험 시간표</div>
+          <div style="font-size:11px;color:var(--gray);margin-bottom:10px;">날짜×교시 그리드 + 과목배정 현황</div>
+          <button class="btn-success-custom w-100" onclick="downloadTimetable()">⬇ 다운로드</button>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div style="border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:6px;">🗃️</div>
+          <div class="fw-semibold mb-1" style="font-size:13px;">이동시간표 DB</div>
+          <div style="font-size:11px;color:var(--gray);margin-bottom:10px;">날짜·교시·시험장소·학번·이름·과목 상세</div>
+          <button class="btn-success-custom w-100" onclick="downloadDB()">⬇ 다운로드</button>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div style="border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:6px;">👤</div>
+          <div class="fw-semibold mb-1" style="font-size:13px;">개인 시간표</div>
+          <div style="font-size:11px;color:var(--gray);margin-bottom:10px;">전체 학생 + 개인 시간표 조회 시트</div>
+          <button class="btn-success-custom w-100" onclick="downloadPersonal()">⬇ 다운로드</button>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div style="border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:6px;">📋</div>
+          <div class="fw-semibold mb-1" style="font-size:13px;">응시현황표</div>
+          <div style="font-size:11px;color:var(--gray);margin-bottom:10px;">일자별 교실별 착석 명단 + 반별 교시별 명단</div>
+          <button class="btn-success-custom w-100" onclick="downloadRoomAttendance()">⬇ 다운로드</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<script>
+// ==========================================
+// 전역 상태
+// ==========================================
+let G = {
+  students: [],      // [{id, name, cls, num, subjects:[]}]
+  subjects: [],      // 과목명 배열
+  schedule: null,    // {subjectName: {dateIdx, periodIdx}}
+  roomAssignments: null, // {subjectName: [{roomName, students:[]}]}
+  settings: null,
+  rooms: []          // [{name, isStudy}]
+};
+
+// ==========================================
+// 초기화
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+  addDate('2026-04-21');
+  addDate('2026-04-22');
+  addDate('2026-04-23');
+  addDate('2026-04-24');
+  addPeriod('1', '08:50~09:40');
+  addPeriod('2', '10:00~10:50');
+  addPeriod('3', '11:10~12:00');
+  addCoreGroup('국어,영어,수학');
+  for(let i=1;i<=9;i++) addRoom(`${i}반`, false);
+
+  // 드래그앤드롭
+  const zone = document.getElementById('uploadZone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  });
+});
+
+// ==========================================
+// STEP 1: 파일 업로드
+// ==========================================
+function handleFileUpload(input) {
+  if (input.files[0]) processFile(input.files[0]);
+}
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const sheetNameInput = document.getElementById('sheetName').value.trim();
+      const sheetName = sheetNameInput || wb.SheetNames[0];
+      if (!wb.SheetNames.includes(sheetName)) {
+        showUploadStatus('error', `시트 "${sheetName}"을 찾을 수 없습니다. 사용 가능한 시트: ${wb.SheetNames.join(', ')}`);
+        return;
+      }
+      const ws = wb.Sheets[sheetName];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      const format = document.getElementById('excelFormat').value;
+      const parsed = format === 'wide' ? parseWideFormat(raw) : parseLongFormat(raw);
+      if (!parsed.ok) { showUploadStatus('error', parsed.error); return; }
+      G.students = parsed.students;
+      G.subjects = parsed.subjects;
+      showUploadStatus('ok', `✅ ${G.students.length}명, ${G.subjects.length}개 과목 로드 완료 (시트: ${sheetName})`);
+      showSubjectList();
+      showDataPreview(raw.slice(0,6));
+      updateFixedSection();
+    } catch(err) {
+      showUploadStatus('error', '파일 읽기 실패: ' + err.message);
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function parseWideFormat(rows) {
+  if (rows.length < 2) return { ok: false, error: '데이터가 없습니다.' };
+  const header = rows[0];
+  // 헤더에서 과목 컬럼 찾기 (4번째 컬럼 이후)
+  // 컬럼: 반, 번호, 학번, 이름, [과목들...]
+  let clsCol = -1, numCol = -1, idCol = -1, nameCol = -1;
+  const keywords = {
+    cls: ['반', '학급', 'class'],
+    num: ['번호', '번', 'no', 'number'],
+    id: ['학번', '번호', 'id', '학생번호'],
+    name: ['이름', '성명', 'name']
+  };
+  // 스마트 컬럼 매칭
+  for (let c = 0; c < Math.min(header.length, 10); c++) {
+    const h = String(header[c]).trim().toLowerCase();
+    if (clsCol < 0 && keywords.cls.some(k => h.includes(k))) clsCol = c;
+    else if (idCol < 0 && keywords.id.some(k => h.includes(k))) idCol = c;
+    else if (nameCol < 0 && keywords.name.some(k => h.includes(k))) nameCol = c;
+  }
+  for (let c = 0; c < Math.min(header.length, 10); c++) {
+    const h = String(header[c]).trim().toLowerCase();
+    if (numCol < 0 && c !== clsCol && c !== idCol && c !== nameCol && keywords.num.some(k => h.includes(k))) numCol = c;
+  }
+  // 폴백: 순서대로 반(0),번호(1),학번(2),이름(3)
+  if (clsCol < 0) clsCol = 0;
+  if (numCol < 0) numCol = 1;
+  if (idCol < 0) idCol = 2;
+  if (nameCol < 0) nameCol = 3;
+
+  const subjectStartCol = Math.max(clsCol, numCol, idCol, nameCol) + 1;
+  const subjectCols = [];
+  for (let c = subjectStartCol; c < header.length; c++) {
+    const h = String(header[c]).trim();
+    if (h) subjectCols.push({ col: c, name: h });
+  }
+  if (subjectCols.length === 0) return { ok: false, error: '과목 컬럼을 찾을 수 없습니다. 헤더 형식을 확인하세요.' };
+
+  const students = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const name = String(row[nameCol] || '').trim();
+    if (!name) continue;
+    const cls = parseInt(row[clsCol]) || 0;
+    const num = parseInt(row[numCol]) || 0;
+    const id = String(row[idCol] || '').trim();
+    const enrolled = subjectCols
+      .filter(sc => {
+        const v = String(row[sc.col] || '').trim();
+        return v !== '' && v !== '0' && v.toLowerCase() !== 'x' && v !== '-';
+      })
+      .map(sc => sc.name);
+    if (enrolled.length > 0) {
+      students.push({ id, name, cls, num, subjects: enrolled });
+    }
+  }
+  if (students.length === 0) return { ok: false, error: '학생 데이터를 파싱하지 못했습니다. 파일 형식을 확인하세요.' };
+  const subjectSet = new Set();
+  students.forEach(s => s.subjects.forEach(sub => subjectSet.add(sub)));
+  return { ok: true, students, subjects: [...subjectSet].sort() };
+}
+
+function parseLongFormat(rows) {
+  if (rows.length < 2) return { ok: false, error: '데이터가 없습니다.' };
+  const header = rows[0].map(h => String(h).trim().toLowerCase());
+  let clsCol = header.findIndex(h => h.includes('반') || h.includes('class'));
+  let numCol = header.findIndex(h => h === '번호' || h === '번' || h === 'no');
+  let idCol = header.findIndex(h => h.includes('학번') || h === 'id');
+  let nameCol = header.findIndex(h => h.includes('이름') || h.includes('성명'));
+  let subCol = header.findIndex(h => h.includes('과목') || h.includes('subject'));
+  if (clsCol < 0) clsCol = 0;
+  if (numCol < 0) numCol = 1;
+  if (idCol < 0) idCol = 2;
+  if (nameCol < 0) nameCol = 3;
+  if (subCol < 0) subCol = 4;
+
+  const studentMap = {};
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const name = String(row[nameCol] || '').trim();
+    const subject = String(row[subCol] || '').trim();
+    if (!name || !subject) continue;
+    const cls = parseInt(row[clsCol]) || 0;
+    const num = parseInt(row[numCol]) || 0;
+    const id = String(row[idCol] || '').trim();
+    const key = `${cls}-${num}-${id || name}`;
+    if (!studentMap[key]) studentMap[key] = { id, name, cls, num, subjects: [] };
+    if (!studentMap[key].subjects.includes(subject)) studentMap[key].subjects.push(subject);
+  }
+  const students = Object.values(studentMap).filter(s => s.subjects.length > 0);
+  if (students.length === 0) return { ok: false, error: '학생 데이터를 파싱하지 못했습니다.' };
+  const subjectSet = new Set();
+  students.forEach(s => s.subjects.forEach(sub => subjectSet.add(sub)));
+  return { ok: true, students, subjects: [...subjectSet].sort() };
+}
+
+function showUploadStatus(type, msg) {
+  const box = document.getElementById('uploadStatus');
+  const cls = type === 'ok' ? 'status-ok' : 'status-err';
+  box.innerHTML = `<div class="status-box ${cls}">${msg}</div>`;
+  document.getElementById('uploadResult').style.display = 'block';
+  const zone = document.getElementById('uploadZone');
+  zone.style.borderColor = type === 'ok' ? '#6ee7b7' : '#fca5a5';
+  zone.style.background = type === 'ok' ? '#f0fdf4' : '#fff5f5';
+}
+
+function showSubjectList() {
+  const div = document.getElementById('subjectList');
+  div.innerHTML = `<div class="fw-semibold mb-1" style="font-size:13px;">감지된 과목 (${G.subjects.length}개):</div>
+    ${G.subjects.map(s => `<span class="badge-subject">${s}</span>`).join('')}`;
+}
+
+function showDataPreview(rows) {
+  if (!rows || rows.length === 0) return;
+  const div = document.getElementById('dataPreview');
+  const cols = Math.min((rows[0] || []).length, 8);
+  let html = `<div class="fw-semibold mb-1" style="font-size:13px;">데이터 미리보기 (상위 5행):</div>
+    <div style="overflow-x:auto;"><table class="table table-sm table-bordered" style="font-size:11px;">`;
+  rows.forEach((row, i) => {
+    html += `<tr>${i === 0 ? '' : ''}`;
+    for (let c = 0; c < cols; c++) {
+      const tag = i === 0 ? 'th' : 'td';
+      html += `<${tag}>${String(row[c] || '').substring(0, 20)}</${tag}>`;
+    }
+    if (rows[0].length > 8) html += `<${i===0?'th':'td'} style="color:gray">... +${rows[0].length-8}개</${i===0?'th':'td'}>`;
+    html += '</tr>';
+  });
+  html += '</table></div>';
+  div.innerHTML = html;
+}
+
+// ==========================================
+// STEP 2: 날짜/교시 관리
+// ==========================================
+let dateCount = 0, periodCount = 0;
+
+function formatKoreanDate(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr + 'T00:00:00');
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const dow = ['일','월','화','수','목','금','토'][date.getDay()];
+  return `${month}월 ${day}일 (${dow})`;
+}
+
+function addDate(dateValue = '') {
+  dateCount++;
+  const id = `date_${dateCount}`;
+  const div = document.createElement('div');
+  div.className = 'date-row';
+  div.id = id;
+  const label = formatKoreanDate(dateValue);
+  div.innerHTML = `
+    <input type="date" class="form-control form-control-sm date-picker-input" style="max-width:170px;" value="${dateValue}"
+      oninput="this.nextElementSibling.textContent=formatKoreanDate(this.value);setTimeout(()=>{updateFixedSection();updateStudySection();},100);">
+    <span style="font-size:13px;color:#1a56db;min-width:130px;display:inline-block;">${label}</span>
+    <button class="btn btn-sm btn-outline-danger" onclick="removeRow('${id}')">✕</button>
+  `;
+  document.getElementById('dateList').appendChild(div);
+}
+
+function addPeriod(num = '', time = '') {
+  periodCount++;
+  const id = `period_${periodCount}`;
+  const div = document.createElement('div');
+  div.className = 'period-row';
+  div.id = id;
+  const pNum = num || periodCount;
+  div.innerHTML = `
+    <label style="min-width:60px;font-size:13px;">${pNum}교시</label>
+    <input type="text" class="form-control form-control-sm" style="max-width:160px;" placeholder="예: 08:50~09:40" value="${time}">
+    <button class="btn btn-sm btn-outline-danger" onclick="removeRow('${id}')">✕</button>
+  `;
+  document.getElementById('periodList').appendChild(div);
+}
+
+function removeRow(id) {
+  document.getElementById(id)?.remove();
+}
+
+function getDates() {
+  return [...document.getElementById('dateList').querySelectorAll('.date-row')]
+    .map((row, i) => {
+      const input = row.querySelector('.date-picker-input');
+      const val = input?.value;
+      if (!val) return null;
+      return { label: formatKoreanDate(val), dateValue: val, index: i };
+    })
+    .filter(d => d !== null);
+}
+
+function getPeriods() {
+  return [...document.getElementById('periodList').querySelectorAll('.period-row')]
+    .map((row, i) => {
+      const inputs = row.querySelectorAll('input');
+      return { num: i + 1, time: inputs[0].value.trim(), index: i };
+    })
+    .filter(p => p.time);
+}
+
+// ==========================================
+// ==========================================
+// 교실 관리
+// ==========================================
+function addRoom(name, isStudy) {
+  const container = document.getElementById('roomList');
+  const idx = container.children.length;
+  const nameVal = name !== undefined ? name : '';
+  const studyChecked = isStudy ? 'checked' : '';
+  const div = document.createElement('div');
+  div.className = 'room-row d-flex gap-1 align-items-center';
+  div.style.cssText = 'background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:4px 8px;';
+  div.innerHTML = `
+    <input type="text" class="form-control form-control-sm room-name" value="${nameVal}" placeholder="예: 1반" style="max-width:80px;border:none;background:transparent;padding:0 4px;font-size:13px;">
+    <div class="form-check mb-0 d-flex align-items-center gap-1" style="white-space:nowrap;">
+      <input class="form-check-input room-study" type="checkbox" ${studyChecked} id="roomStudy${idx}" style="margin-top:0;">
+      <label class="form-check-label" for="roomStudy${idx}" style="font-size:11px;color:var(--gray);">자습실</label>
+    </div>
+    <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:11px;line-height:1.4;" onclick="this.closest('.room-row').remove()">✕</button>
+  `;
+  container.appendChild(div);
+}
+
+function getRooms() {
+  const rows = document.querySelectorAll('.room-row');
+  const rooms = [];
+  rows.forEach(row => {
+    const name = row.querySelector('.room-name').value.trim();
+    const isStudy = row.querySelector('.room-study').checked;
+    if (name) rooms.push({ name, isStudy });
+  });
+  return rooms;
+}
+
+// ==========================================
+// STEP 3: 고정 배정
+// ==========================================
+function updateFixedSection() {
+  if (!G.subjects.length) return;
+  const dates = getDates();
+  const periods = getPeriods();
+  if (!dates.length || !periods.length) return;
+
+  const container = document.getElementById('fixedAssignSection');
+  let html = `<div class="mb-2" style="font-size:13px;color:var(--gray);">
+    비워두면 자동 배정됩니다. 고정할 과목만 날짜/교시를 선택하세요.
+  </div>
+  <div style="overflow-x:auto;"><table class="table table-sm table-bordered" style="font-size:13px;">
+    <thead><tr><th style="background:#f8fafc;">과목명</th><th style="background:#f8fafc;">고정 날짜</th><th style="background:#f8fafc;">고정 교시</th></tr></thead>
+    <tbody>`;
+
+  G.subjects.forEach(sub => {
+    html += `<tr>
+      <td class="fw-semibold">${sub}</td>
+      <td>
+        <select class="form-select form-select-sm fixed-date" data-subject="${sub}" style="min-width:150px;">
+          <option value="">자동</option>
+          ${dates.map((d, i) => `<option value="${i}">${d.label}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <select class="form-select form-select-sm fixed-period" data-subject="${sub}" style="min-width:100px;">
+          <option value="">자동</option>
+          ${periods.map((p, i) => `<option value="${i}">${p.num}교시 (${p.time})</option>`).join('')}
+        </select>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function getFixedAssignments() {
+  const fixed = {};
+  document.querySelectorAll('.fixed-date').forEach(sel => {
+    const subject = sel.dataset.subject;
+    const dateVal = sel.value;
+    const periodSel = document.querySelector(`.fixed-period[data-subject="${subject}"]`);
+    const periodVal = periodSel ? periodSel.value : '';
+    if (dateVal === '' && periodVal === '') return; // 둘 다 자동이면 스킵
+    fixed[subject] = {
+      dateIdx: dateVal !== '' ? parseInt(dateVal) : null,
+      periodIdx: periodVal !== '' ? parseInt(periodVal) : null
+    };
+  });
+  return fixed;
+}
+
+// ==========================================
+// STEP 4: 시간표 생성 알고리즘
+// ==========================================
+function generateSchedule() {
+  const resultDiv = document.getElementById('generateResult');
+  const dates = getDates();
+  const periods = getPeriods();
+  const maxPerRoom = parseInt(document.getElementById('maxPerRoom').value) || 28;
+
+  if (!G.students.length) {
+    resultDiv.innerHTML = '<div class="status-box status-err">❌ 수강 정보를 먼저 업로드해주세요.</div>';
+    return;
+  }
+  if (!dates.length) {
+    resultDiv.innerHTML = '<div class="status-box status-err">❌ 시험 날짜를 입력해주세요.</div>';
+    return;
+  }
+  if (!periods.length) {
+    resultDiv.innerHTML = '<div class="status-box status-err">❌ 교시 정보를 입력해주세요.</div>';
+    return;
+  }
+
+  document.getElementById('loadingOverlay').style.display = 'flex';
+
+  setTimeout(() => {
+    try {
+      const fixedAssignments = getFixedAssignments();
+
+      // 1. 슬롯 목록 생성
+      const slots = [];
+      dates.forEach((d, di) => {
+        periods.forEach((p, pi) => {
+          slots.push({ dateIdx: di, periodIdx: pi, dateLabel: d.label, periodNum: p.num, periodTime: p.time });
+        });
+      });
+
+      // 2. 과목별 학생 목록
+      const subjectStudents = {};
+      G.subjects.forEach(sub => {
+        subjectStudents[sub] = G.students.filter(s => s.subjects.includes(sub));
+      });
+
+      // 3. 충돌 그래프 (같은 학생을 공유하는 과목 쌍)
+      const conflicts = {};
+      G.subjects.forEach(s => conflicts[s] = new Set());
+      G.students.forEach(student => {
+        const subs = student.subjects;
+        for (let i = 0; i < subs.length; i++) {
+          for (let j = i + 1; j < subs.length; j++) {
+            conflicts[subs[i]].add(subs[j]);
+            conflicts[subs[j]].add(subs[i]);
+          }
+        }
+      });
+
+      // 4. 고정 배정 적용 (날짜+교시 둘 다 고정인 경우만 직접 슬롯 배정)
+      const assignment = {}; // subject -> slot index
+      const slotUsage = {}; // "di-pi" -> [subjects]
+      Object.keys(fixedAssignments).forEach(sub => {
+        const { dateIdx, periodIdx } = fixedAssignments[sub];
+        if (dateIdx === null || periodIdx === null) return; // 하나라도 null이면 그리디에서 처리
+        const slotIdx = slots.findIndex(s => s.dateIdx === dateIdx && s.periodIdx === periodIdx);
+        if (slotIdx >= 0) {
+          assignment[sub] = slotIdx;
+          const key = `${dateIdx}-${periodIdx}`;
+          if (!slotUsage[key]) slotUsage[key] = [];
+          slotUsage[key].push(sub);
+        }
+      });
+
+      // 충돌 검사 (고정 배정끼리)
+      const fixedConflicts = [];
+      Object.keys(fixedAssignments).forEach(subA => {
+        Object.keys(fixedAssignments).forEach(subB => {
+          if (subA >= subB) return;
+          const a = fixedAssignments[subA], b = fixedAssignments[subB];
+          if (a.dateIdx === b.dateIdx && a.periodIdx === b.periodIdx) {
+            if (conflicts[subA].has(subB)) {
+              fixedConflicts.push(`"${subA}"와 "${subB}"는 같은 시간에 배정되었지만 공통 학생이 있습니다`);
+            }
+          }
+        });
+      });
+
+      // 5. 나머지 과목 그리디 배정 (부하분산 + 핵심과목 그룹 + 자습슬롯 제약)
+      const forbiddenSlots = getStudySlots();
+      const coreGroups = getCoreGroups();
+      const unassigned = G.subjects.filter(s => assignment[s] === undefined);
+      // 충돌 수 + 학생 수 기준으로 정렬 (많이 제약된 과목 먼저)
+      unassigned.sort((a, b) => {
+        const ca = conflicts[a].size + subjectStudents[a].length * 0.001;
+        const cb = conflicts[b].size + subjectStudents[b].length * 0.001;
+        return cb - ca;
+      });
+
+      // 슬롯 점수 계산 (낮을수록 좋음, Infinity = 배정 불가)
+      function calcSlotScore(sub, slotIdx) {
+        const slot = slots[slotIdx];
+        const key = `${slot.dateIdx}-${slot.periodIdx}`;
+
+        // 하드 제약: 자습 슬롯
+        if (forbiddenSlots.has(key)) return Infinity;
+
+        // 하드 제약: 날짜 또는 교시 고정 (한쪽만 고정된 경우)
+        if (fixedAssignments[sub]) {
+          const { dateIdx: fDate, periodIdx: fPeriod } = fixedAssignments[sub];
+          if (fDate !== null && slot.dateIdx !== fDate) return Infinity;
+          if (fPeriod !== null && slot.periodIdx !== fPeriod) return Infinity;
+        }
+
+        // 하드 제약: 충돌 과목과 같은 슬롯
+        for (const c of conflicts[sub]) {
+          if (assignment[c] !== undefined) {
+            const cs = slots[assignment[c]];
+            if (cs.dateIdx === slot.dateIdx && cs.periodIdx === slot.periodIdx) return Infinity;
+          }
+        }
+
+        // 하드 제약: 핵심 과목 그룹 같은 날 금지 (부분 일치)
+        for (const group of coreGroups) {
+          const inGroup = group.some(g => sub === g || sub.includes(g) || g.includes(sub));
+          if (inGroup) {
+            for (const other of group) {
+              if (other === sub) continue;
+              for (const [asSub, asIdx] of Object.entries(assignment)) {
+                if (asIdx === undefined) continue;
+                const matches = asSub === other || asSub.includes(other) || other.includes(asSub);
+                if (matches && slots[asIdx].dateIdx === slot.dateIdx) return Infinity;
+              }
+            }
+          }
+        }
+
+        // 소프트 제약 1: 동시 배정 옵션에 따라 슬롯 선호도 결정
+        const allowSameSlot = document.getElementById('allowSameSlot').checked;
+        const existingInSlot = (slotUsage[key] || []).length;
+        // 동시배정 허용 시: 이미 과목이 있는 슬롯에 보너스 (음수 = 선호) → 겹치는 학생 없는 과목은 같은 슬롯에 적극 배정
+        // 동시배정 비허용 시: 강한 패널티로 빈 슬롯 선호
+        let score = existingInSlot * (allowSameSlot ? -15 : 500);
+
+        // 소프트 제약 2: 하루 전체 교시 시험 최소화 옵션
+        const noHeavyDay = document.getElementById('noLoneExamDay').checked;
+        const numPeriods = getPeriods().length || 3;
+        const heavyThreshold = Math.max(1, numPeriods - 1); // 이 값 이상이면 모든 교시 채움
+        subjectStudents[sub].forEach(stu => {
+          const examsOnDay = stu.subjects.filter(s =>
+            s !== sub && assignment[s] !== undefined && slots[assignment[s]].dateIdx === slot.dateIdx
+          ).length;
+          if (examsOnDay >= heavyThreshold) {
+            score += noHeavyDay ? 2000 : 1000;
+          } else if (examsOnDay >= 1) {
+            score += 1;
+          } else {
+            score += noHeavyDay ? 5 : 0;
+          }
+        });
+
+        // 하드 제약 3: 날짜별 최소 1과목 강제 (spreadExamDays 옵션)
+        const spreadDays = document.getElementById('spreadExamDays').checked;
+        if (spreadDays) {
+          const subsOnDay = Object.values(assignment).filter(
+            idx => idx !== undefined && slots[idx].dateIdx === slot.dateIdx
+          ).length;
+          // 아직 과목이 하나도 없는 날을 최우선 선호 (사실상 하드 제약)
+          if (subsOnDay === 0) score -= 999999;
+        }
+
+        // 동점일 때 약간의 랜덤성 (다시 생성 시 다른 결과 가능)
+        score += Math.random() * 0.1;
+        return score;
+      }
+
+      const errors = [...fixedConflicts];
+
+      // 직접 충돌 없는 슬롯 찾기 (폴백 공통 함수)
+      function findNoConflictSlot(sub, skipForbidden) {
+        for (let idx = 0; idx < slots.length; idx++) {
+          const s = slots[idx];
+          const key = `${s.dateIdx}-${s.periodIdx}`;
+          if (skipForbidden && forbiddenSlots.has(key)) continue;
+          let ok = true;
+          for (const c of conflicts[sub]) {
+            if (assignment[c] !== undefined) {
+              const cs = slots[assignment[c]];
+              if (cs.dateIdx === s.dateIdx && cs.periodIdx === s.periodIdx) { ok = false; break; }
+            }
+          }
+          if (ok) return idx;
+        }
+        return -1;
+      }
+
+      // 그리디 배정
+      for (const sub of unassigned) {
+        let bestSlot = -1, bestScore = Infinity;
+        for (let idx = 0; idx < slots.length; idx++) {
+          const score = calcSlotScore(sub, idx);
+          if (score < bestScore) { bestScore = score; bestSlot = idx; }
+        }
+
+        if (bestSlot < 0) {
+          // 폴백 1: 핵심그룹 제약 무시, 충돌·자습만 피하기
+          bestSlot = findNoConflictSlot(sub, true);
+          // 폴백 2: 자습도 무시, 충돌만 피하기
+          if (bestSlot < 0) bestSlot = findNoConflictSlot(sub, false);
+          // 폴백 3: 충돌 학생 최소인 슬롯
+          if (bestSlot < 0) {
+            let minHit = Infinity;
+            for (let idx = 0; idx < slots.length; idx++) {
+              let hit = 0;
+              for (const stu of subjectStudents[sub]) {
+                if (stu.subjects.some(s => s !== sub && assignment[s] !== undefined &&
+                  slots[assignment[s]].dateIdx === slots[idx].dateIdx &&
+                  slots[assignment[s]].periodIdx === slots[idx].periodIdx)) hit++;
+              }
+              if (hit < minHit) { minHit = hit; bestSlot = idx; }
+            }
+          }
+          if (bestSlot < 0) bestSlot = 0;
+        }
+
+        assignment[sub] = bestSlot;
+        const s = slots[assignment[sub]];
+        const key = `${s.dateIdx}-${s.periodIdx}`;
+        if (!slotUsage[key]) slotUsage[key] = [];
+        slotUsage[key].push(sub);
+      }
+
+      // ── Repair pass: 충돌 학생이 있는 과목을 재배치 ──
+      for (let pass = 0; pass < 40; pass++) {
+        let anyFix = false;
+        // 충돌 있는 (학생, 슬롯) 쌍 탐색
+        outer:
+        for (const stu of G.students) {
+          const slotSubMap = {};
+          for (const sub of stu.subjects) {
+            if (assignment[sub] === undefined) continue;
+            const sl = slots[assignment[sub]];
+            const k = `${sl.dateIdx}-${sl.periodIdx}`;
+            if (!slotSubMap[k]) slotSubMap[k] = [];
+            slotSubMap[k].push(sub);
+          }
+          for (const subsInSlot of Object.values(slotSubMap)) {
+            if (subsInSlot.length <= 1) continue;
+            // 이 슬롯에 2과목 이상 배정된 학생 발견 → 하나씩 이동 시도
+            for (const moveSub of subsInSlot) {
+              const origIdx = assignment[moveSub];
+              const origKey = `${slots[origIdx].dateIdx}-${slots[origIdx].periodIdx}`;
+              // 임시로 배정 해제
+              delete assignment[moveSub];
+              slotUsage[origKey] = (slotUsage[origKey] || []).filter(s => s !== moveSub);
+              // 유효 슬롯 탐색
+              let newBest = -1, newScore = Infinity;
+              for (let idx = 0; idx < slots.length; idx++) {
+                if (idx === origIdx) continue;
+                const sc = calcSlotScore(moveSub, idx);
+                if (sc < newScore) { newScore = sc; newBest = idx; }
+              }
+              if (newBest >= 0 && newScore < Infinity) {
+                assignment[moveSub] = newBest;
+                const nk = `${slots[newBest].dateIdx}-${slots[newBest].periodIdx}`;
+                if (!slotUsage[nk]) slotUsage[nk] = [];
+                slotUsage[nk].push(moveSub);
+                anyFix = true;
+                break outer;
+              } else {
+                // 복원
+                assignment[moveSub] = origIdx;
+                if (!slotUsage[origKey]) slotUsage[origKey] = [];
+                slotUsage[origKey].push(moveSub);
+              }
+            }
+          }
+        }
+        if (!anyFix) break;
+      }
+
+      // ── 빈 날 강제 채우기 패스 (spreadExamDays 옵션) ──
+      if (document.getElementById('spreadExamDays').checked) {
+        const allDateIdxs = dates.map((_, i) => i);
+        for (const emptyDi of allDateIdxs) {
+          // 이 날짜에 배정된 과목이 있으면 스킵
+          const hasSubOnDay = Object.values(assignment).some(
+            idx => idx !== undefined && slots[idx].dateIdx === emptyDi
+          );
+          if (hasSubOnDay) continue;
+
+          // 빈 날 → 다른 날에서 옮길 과목 탐색
+          // 조건: 옮겨도 학생 충돌이 없고, 출발 날짜에 2과목 이상 남는 경우 우선
+          let moved = false;
+          // 출발 날 과목 수가 많은 순으로 후보 정렬
+          const candidates = [...Object.keys(assignment)].filter(sub => {
+            const origDi = slots[assignment[sub]].dateIdx;
+            return origDi !== emptyDi;
+          });
+          candidates.sort((a, b) => {
+            const cntA = Object.values(assignment).filter(i => i !== undefined && slots[i].dateIdx === slots[assignment[a]].dateIdx).length;
+            const cntB = Object.values(assignment).filter(i => i !== undefined && slots[i].dateIdx === slots[assignment[b]].dateIdx).length;
+            return cntB - cntA;
+          });
+
+          for (const moveSub of candidates) {
+            const origIdx = assignment[moveSub];
+            const origDi = slots[origIdx].dateIdx;
+            const origKey = `${slots[origIdx].dateIdx}-${slots[origIdx].periodIdx}`;
+
+            // 출발 날에 이 과목 빼도 1과목 이상 남는지 확인
+            const remainOnOrig = Object.values(assignment).filter(
+              i => i !== undefined && i !== origIdx && slots[i].dateIdx === origDi
+            ).length;
+            if (remainOnOrig < 1) continue;
+
+            // 빈 날의 슬롯 중 충돌 없는 슬롯 탐색
+            const targetSlots = slots
+              .map((s, i) => ({ s, i }))
+              .filter(({ s }) => s.dateIdx === emptyDi);
+
+            for (const { s: ts, i: ti } of targetSlots) {
+              const tKey = `${ts.dateIdx}-${ts.periodIdx}`;
+              if (forbiddenSlots.has(tKey)) continue;
+              let conflict = false;
+              for (const c of conflicts[moveSub]) {
+                if (assignment[c] !== undefined && slots[assignment[c]].dateIdx === ts.dateIdx && slots[assignment[c]].periodIdx === ts.periodIdx) {
+                  conflict = true; break;
+                }
+              }
+              if (!conflict) {
+                // 이동
+                slotUsage[origKey] = (slotUsage[origKey] || []).filter(s => s !== moveSub);
+                assignment[moveSub] = ti;
+                if (!slotUsage[tKey]) slotUsage[tKey] = [];
+                slotUsage[tKey].push(moveSub);
+                moved = true;
+                break;
+              }
+            }
+            if (moved) break;
+          }
+        }
+      }
+
+      // 6. 시험실 배정 (과목별) — 동시 배정 시 인원 많은 과목이 앞반, 적은 과목이 뒷반
+      const configuredRooms = getRooms().filter(r => !r.isStudy);
+      const roomAssignments = {};
+
+      // 슬롯별로 과목 묶기
+      const slotSubjects = {}; // "di-pi" -> [sub, ...]
+      G.subjects.forEach(sub => {
+        const s = slots[assignment[sub]];
+        const k = `${s.dateIdx}-${s.periodIdx}`;
+        if (!slotSubjects[k]) slotSubjects[k] = [];
+        slotSubjects[k].push(sub);
+      });
+
+      // 각 슬롯 내에서 인원 내림차순 정렬 후 교실 순서 할당
+      Object.values(slotSubjects).forEach(subs => {
+        subs.sort((a, b) => subjectStudents[b].length - subjectStudents[a].length);
+        let roomOffset = 0;
+        subs.forEach(sub => {
+          const studs = [...subjectStudents[sub]].sort((a, b) => {
+            if (a.cls !== b.cls) return a.cls - b.cls;
+            return a.num - b.num;
+          });
+          const rooms = [];
+          for (let i = 0; i < studs.length; i += maxPerRoom) {
+            const chunk = studs.slice(i, i + maxPerRoom);
+            const roomName = configuredRooms[roomOffset + rooms.length]
+              ? configuredRooms[roomOffset + rooms.length].name
+              : `${roomOffset + rooms.length + 1}반`;
+            rooms.push({ roomName, students: chunk });
+          }
+          roomAssignments[sub] = rooms;
+          roomOffset += rooms.length;
+        });
+      });
+
+      G.schedule = assignment;
+      G.slots = slots;
+      G.roomAssignments = roomAssignments;
+      G.conflicts = conflicts;
+      G.settings = {
+        title: `${document.getElementById('schoolYear').value}학년도 ${document.getElementById('semester').value}학기 ${document.getElementById('examNum').value}회고사`,
+        grade: document.getElementById('grade').value,
+        dates, periods, maxPerRoom
+      };
+
+      // 7. 배정 결과 검증
+      // (1) 누락 과목 확인
+      const missingSubjects = G.subjects.filter(s => assignment[s] === undefined);
+      if (missingSubjects.length > 0) {
+        errors.push(`❌ 배정되지 않은 과목 (${missingSubjects.length}개): ${missingSubjects.join(', ')}`);
+      }
+      // (2) 미응시 학생 확인 (같은 슬롯에 두 과목 배정된 경우)
+      const conflictStudentList = [];
+      G.students.forEach(stu => {
+        const slotSubMap = {};
+        stu.subjects.forEach(sub => {
+          if (assignment[sub] === undefined) return;
+          const sl = slots[assignment[sub]];
+          const k = `${sl.dateIdx}-${sl.periodIdx}`;
+          if (!slotSubMap[k]) slotSubMap[k] = [];
+          slotSubMap[k].push(sub);
+        });
+        Object.values(slotSubMap).forEach(subs => {
+          if (subs.length > 1) conflictStudentList.push({ stu, subs });
+        });
+      });
+      if (conflictStudentList.length > 0) {
+        errors.push(`❌ 같은 시간에 두 과목 시험을 봐야 하는 학생 ${conflictStudentList.length}명 — 날짜/교시를 늘리거나 고정 배정을 조정하세요`);
+      }
+
+      // 결과 표시
+      if (errors.length > 0) {
+        resultDiv.innerHTML = errors.map(e => `<div class="status-box ${e.startsWith('❌') ? 'status-err' : 'status-warn'}">⚠️ ${e}</div>`).join('');
+      } else {
+        resultDiv.innerHTML = `<div class="status-box status-ok">✅ 시간표 생성 완료! ${G.subjects.length}개 과목 전부 배정, ${G.students.length}명 학생, 미응시 0명</div>`;
+      }
+
+      renderPreview(slots, assignment, dates, periods);
+      renderLoadReport();
+      document.getElementById('previewSection').style.display = 'block';
+      document.getElementById('downloadSection').style.display = 'block';
+      document.getElementById('downloadSection').scrollIntoView({ behavior: 'smooth' });
+
+    } catch (err) {
+      document.getElementById('generateResult').innerHTML = `<div class="status-box status-err">❌ 오류: ${err.message}</div>`;
+    }
+    document.getElementById('loadingOverlay').style.display = 'none';
+  }, 100);
+}
+
+// ==========================================
+// 미리보기 렌더링
+// ==========================================
+function renderPreview(slots, assignment, dates, periods) {
+  const table = document.getElementById('previewTable');
+  const slotSubjects = {};
+  G.subjects.forEach(sub => {
+    const slotIdx = assignment[sub];
+    const s = slots[slotIdx];
+    const key = `${s.dateIdx}-${s.periodIdx}`;
+    if (!slotSubjects[key]) slotSubjects[key] = [];
+    slotSubjects[key].push(sub);
+  });
+
+  let html = '<thead><tr><th>교시</th>';
+  dates.forEach(d => html += `<th>${d.label}</th>`);
+  html += '</tr></thead><tbody>';
+  periods.forEach((p, pi) => {
+    html += `<tr><td class="fw-semibold" style="background:#f0f4ff;">${p.num}교시<br><small style="font-weight:normal;color:#888;">${p.time}</small></td>`;
+    dates.forEach((d, di) => {
+      const key = `${di}-${pi}`;
+      const subs = slotSubjects[key] || [];
+      if (subs.length > 0) {
+        html += `<td class="has-subject drag-target" data-di="${di}" data-pi="${pi}">${subs.map(s => {
+          const rooms = G.roomAssignments[s] || [];
+          const totalStudents = rooms.reduce((acc, r) => acc + r.students.length, 0);
+          return `<div class="subject-cell draggable-subject" draggable="true" data-subject="${s}">${s}<br><small style="color:#6b7280;">${totalStudents}명 ${rooms.length}실</small></div>`;
+        }).join('')}</td>`;
+      } else {
+        html += `<td class="drag-target" data-di="${di}" data-pi="${pi}" style="color:#ccc;">—</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  initDragDrop();
+  renderConflictReport();
+}
+
+function initDragDrop() {
+  let dragSub = null;
+
+  document.querySelectorAll('.draggable-subject').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      dragSub = el.dataset.subject;
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+    });
+  });
+
+  document.querySelectorAll('.drag-target').forEach(td => {
+    td.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+      td.classList.add('drag-over');
+    });
+    td.addEventListener('dragleave', () => td.classList.remove('drag-over'));
+    td.addEventListener('drop', e => {
+      e.preventDefault();
+      td.classList.remove('drag-over');
+      if (!dragSub) return;
+
+      const toDi = parseInt(td.dataset.di);
+      const toPi = parseInt(td.dataset.pi);
+      const slots = G.slots;
+      const curSlotIdx = G.schedule[dragSub];
+      const curSlot = slots[curSlotIdx];
+
+      // 같은 슬롯이면 무시
+      if (curSlot.dateIdx === toDi && curSlot.periodIdx === toPi) return;
+
+      // 이동 대상 슬롯 찾기
+      const toSlotIdx = slots.findIndex(s => s.dateIdx === toDi && s.periodIdx === toPi);
+      if (toSlotIdx < 0) return;
+
+      // 충돌 검사: 이동할 슬롯에 이미 있는 과목들과 공통 학생 확인
+      const subsInTarget = G.subjects.filter(s => s !== dragSub && G.schedule[s] === toSlotIdx);
+      const conflictSubs = subsInTarget.filter(s => G.conflicts[dragSub] && G.conflicts[dragSub].has(s));
+      if (conflictSubs.length > 0) {
+        const names = conflictSubs.join(', ');
+        alert(`⚠️ 이동 불가\n\n"${dragSub}"을(를) 이 슬롯으로 옮기면 다음 과목과 같은 시간에 시험을 봐야 하는 학생이 생깁니다:\n${names}`);
+        dragSub = null;
+        return;
+      }
+
+      // 고정 배정 제약 확인
+      const fixed = getFixedAssignments();
+      if (fixed[dragSub]) {
+        const { dateIdx: fDate, periodIdx: fPeriod } = fixed[dragSub];
+        if (fDate !== null && fDate !== toDi) {
+          alert(`⚠️ 이동 불가\n\n"${dragSub}"은(는) 날짜가 고정 배정되어 있습니다.`);
+          dragSub = null;
+          return;
+        }
+        if (fPeriod !== null && fPeriod !== toPi) {
+          alert(`⚠️ 이동 불가\n\n"${dragSub}"은(는) 교시가 고정 배정되어 있습니다.`);
+          dragSub = null;
+          return;
+        }
+      }
+
+      // 이동 실행
+      G.schedule[dragSub] = toSlotIdx;
+      renderPreview(G.slots, G.schedule, G.settings.dates, G.settings.periods);
+      renderLoadReport();
+      dragSub = null;
+    });
+  });
+}
+
+function renderConflictReport() {
+  const div = document.getElementById('conflictReport');
+  // 같은 슬롯에 배정된 과목 중 충돌 있는 것 찾기
+  const issues = [];
+  const slotMap = {};
+  G.subjects.forEach(sub => {
+    const slotIdx = G.schedule[sub];
+    if (!slotMap[slotIdx]) slotMap[slotIdx] = [];
+    slotMap[slotIdx].push(sub);
+  });
+  Object.values(slotMap).forEach(subsInSlot => {
+    for (let i = 0; i < subsInSlot.length; i++) {
+      for (let j = i+1; j < subsInSlot.length; j++) {
+        if (G.conflicts[subsInSlot[i]] && G.conflicts[subsInSlot[i]].has(subsInSlot[j])) {
+          const commonStudents = G.students.filter(s =>
+            s.subjects.includes(subsInSlot[i]) && s.subjects.includes(subsInSlot[j])
+          );
+          issues.push({ subA: subsInSlot[i], subB: subsInSlot[j], count: commonStudents.length });
+        }
+      }
+    }
+  });
+
+  if (issues.length === 0) {
+    div.innerHTML = '<div class="status-box status-ok">✅ 시간 충돌 없음: 어떤 학생도 같은 시간에 두 과목 시험을 보지 않습니다.</div>';
+  } else {
+    div.innerHTML = `<div class="status-box status-err">⚠️ 충돌 ${issues.length}건 발견:
+      <ul style="margin:4px 0 0;padding-left:20px;">
+        ${issues.map(i => `<li>"${i.subA}" ↔ "${i.subB}" (공통 학생 ${i.count}명)</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+}
+
+// ==========================================
+// STEP 5: 엑셀 다운로드
+// ==========================================
+function getExamTitle() {
+  const s = G.settings;
+  return `${s.title} ${s.grade}학년 시간표`;
+}
+
+// ── ExcelJS 공통 헬퍼 ──
+const XC = {
+  PC:'FF1A56DB', PLG:'FFE8F0FE', WHT:'FFFFFFFF',
+  G50:'FFF9FAFB', G100:'FFF3F4F6', G200:'FFE5E7EB',
+  G400:'FF9CA3AF', TXT:'FF111827',
+  YEL:'FFFEF9C3', ORG:'FFFFF8E1',
+};
+function xb(argb) {
+  const s={style:'thin',color:{argb:argb||XC.G200}};
+  return {top:s,left:s,bottom:s,right:s};
+}
+function xs(cell, o) {
+  o=o||{};
+  const bold=o.bold||false,size=o.size||10,color=o.color||XC.TXT,
+        bg=o.bg,align=o.align||'center',wrap=o.wrap||false,italic=o.italic||false;
+  cell.font={bold,italic,size,color:{argb:color},name:'Malgun Gothic'};
+  if(bg) cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:bg}};
+  cell.alignment={horizontal:align,vertical:'middle',wrapText:wrap};
+  cell.border=xb(bg===XC.PC?'FF6B93D6':XC.G200);
+}
+function xsc(cell,value,o){cell.value=value;xs(cell,o);}
+function xhd(cell,value){xsc(cell,value,{bold:true,color:XC.WHT,bg:XC.PC});}
+async function xlSave(wb,filename){
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+function buildSlotSubMap(){
+  const m={};
+  G.subjects.forEach(sub=>{
+    const s=G.slots[G.schedule[sub]];
+    const k=`${s.dateIdx}-${s.periodIdx}`;
+    if(!m[k])m[k]=[];m[k].push(sub);
+  });
+  return m;
+}
+
+// ── Sheet: 시험시간표 ──
+function xlBuildTimetable(wb){
+  const {dates,periods}=G.settings;
+  const ssm=buildSlotSubMap(), study=getStudySlots();
+  const ws=wb.addWorksheet('시험시간표');
+  ws.properties.defaultRowHeight=22;
+
+  ws.mergeCells(1,1,1,dates.length+1);
+  xsc(ws.getCell(1,1),getExamTitle(),{bold:true,size:13,color:XC.WHT,bg:XC.PC});
+  ws.getRow(1).height=34;
+
+  xhd(ws.getCell(2,1),'교시');
+  dates.forEach((d,di)=>xhd(ws.getCell(2,di+2),d.label));
+  ws.getRow(2).height=28;
+
+  periods.forEach((p,pi)=>{
+    const r=pi+3;
+    xsc(ws.getCell(r,1),`${p.num}교시\n${p.time}`,{bold:true,bg:XC.PLG,color:XC.PC,wrap:true});
+    dates.forEach((d,di)=>{
+      const key=`${di}-${pi}`, cell=ws.getCell(r,di+2), subs=ssm[key]||[];
+      if(study.has(key)){
+        xsc(cell,'자습',{italic:true,color:XC.G400,bg:XC.YEL});
+      } else if(subs.length>0){
+        const txt=subs.map(s=>{
+          const tot=(G.roomAssignments[s]||[]).reduce((a,rm)=>a+rm.students.length,0);
+          return `${s} (${tot}명)`;
+        }).join('\n');
+        xsc(cell,txt,{bg:pi%2===0?XC.WHT:XC.G50,wrap:true});
+      } else {
+        xsc(cell,'—',{color:XC.G400,bg:pi%2===0?XC.WHT:XC.G50});
+      }
+    });
+    ws.getRow(r).height=42;
+  });
+
+  ws.getColumn(1).width=18;
+  dates.forEach((_,i)=>{ws.getColumn(i+2).width=24;});
+}
+
+// ── Sheet: 이동시간표DB ──
+function xlBuildDB(wb){
+  const slots=G.slots;
+  const ws=wb.addWorksheet('이동시간표DB');
+  ws.properties.defaultRowHeight=20;
+
+  const hdrs=['날짜','교시','시험장소','착석번호','학번','이름','과목','비고','조회키'];
+  const wids=[14,8,24,8,10,10,18,6,22];
+  hdrs.forEach((h,i)=>{xhd(ws.getCell(1,i+1),h);ws.getColumn(i+1).width=wids[i];});
+  ws.getRow(1).height=26;
+  ws.views=[{state:'frozen',ySplit:1}];
+  ws.autoFilter={from:'A1',to:'H1'};
+
+  const rows=[];
+  G.subjects.forEach(sub=>{
+    const slot=slots[G.schedule[sub]];
+    (G.roomAssignments[sub]||[]).forEach(room=>{
+      room.students.forEach((stu,si)=>{
+        rows.push([slot.dateLabel,`${slot.periodNum}교시`,
+          room.roomName,si+1,stu.id,stu.name,sub,'']);
+      });
+    });
+  });
+  rows.sort((a,b)=>{
+    const sA=slots.find(s=>s.dateLabel===a[0]&&`${s.periodNum}교시`===a[1]);
+    const sB=slots.find(s=>s.dateLabel===b[0]&&`${s.periodNum}교시`===b[1]);
+    const iA=sA?slots.indexOf(sA):0,iB=sB?slots.indexOf(sB):0;
+    if(iA!==iB)return iA-iB;
+    return a[2]<b[2]?-1:a[2]>b[2]?1:a[3]-b[3];
+  });
+
+  const aligns=['center','center','left','center','center','left','left','center'];
+  rows.forEach((row,i)=>{
+    const ri=i+2, bg=i%2===0?XC.WHT:XC.G50;
+    row.forEach((val,ci)=>xsc(ws.getCell(ri,ci+1),val,{bg,align:aligns[ci]||'center'}));
+    const kc=ws.getCell(ri,9);
+    kc.value={formula:`F${ri}&"|"&A${ri}&"|"&B${ri}`};
+    xs(kc,{bg:XC.G100,size:9,color:XC.G400});
+    kc.border=xb('FFEEEEEE');
+  });
+}
+
+// ── Sheet: 개인시간표조회 (수식) ──
+function xlBuildPersonalLookup(wb){
+  const {dates,periods}=G.settings;
+  const ws=wb.addWorksheet('개인시간표조회');
+  ws.properties.defaultRowHeight=22;
+  const lcn=Math.max(dates.length+1,7);
+
+  ws.mergeCells(1,1,1,5);
+  xsc(ws.getCell(1,1),getExamTitle(),{bold:true,size:13,color:XC.WHT,bg:XC.PC});
+  ws.getRow(1).height=34;
+  ws.getRow(2).height=8;
+
+  xsc(ws.getCell(3,1),'이름',{bold:true,bg:XC.PLG,color:XC.PC});
+  ws.mergeCells(3,2,3,5);
+  const nameValCell=ws.getCell(3,2);
+  nameValCell.value={formula:'=IF($G$3="","",$G$3)'};
+  xs(nameValCell,{bg:XC.G50,align:'left'});
+  xs(ws.getCell(3,7),{bg:XC.YEL});
+  ws.getRow(3).height=26;
+
+  xsc(ws.getCell(4,1),'학번',{bold:true,bg:XC.PLG,color:XC.PC});
+  ws.mergeCells(4,2,4,5);
+  const idValCell=ws.getCell(4,2);
+  idValCell.value={formula:"IF($G$3=\"\",\"\",IFERROR(INDEX('이동시간표DB'!$E:$E,MATCH($G$3,'이동시간표DB'!$F:$F,0)),\"\"))"};
+  xs(idValCell,{bg:XC.G50,align:'left'});
+  ws.getRow(4).height=22;
+  ws.getRow(5).height=8;
+
+  xhd(ws.getCell(6,1),'교시 \\ 날짜');
+  dates.forEach((d,di)=>xhd(ws.getCell(6,di+2),d.label));
+  ws.getRow(6).height=28;
+
+  periods.forEach((p,pi)=>{
+    const ri=7+pi, ps=`${p.num}교시`;
+    xsc(ws.getCell(ri,1),`${p.num}교시\n${p.time}`,{bold:true,bg:XC.PLG,color:XC.PC,wrap:true});
+    dates.forEach((d,di)=>{
+      const col=String.fromCharCode(66+di);
+      const mx=`MATCH($G$3&"|"&${col}$6&"|"&"${ps}",'이동시간표DB'!$I:$I,0)`;
+      const f=`IFERROR(INDEX('이동시간표DB'!$G:$G,${mx})&" ["&INDEX('이동시간표DB'!$C:$C,${mx})&" "&INDEX('이동시간표DB'!$D:$D,${mx})&"번]","자습")`;
+      const cell=ws.getCell(ri,di+2);
+      cell.value={formula:f};
+      xs(cell,{bg:XC.WHT,wrap:true});
+    });
+    ws.getRow(ri).height=40;
+  });
+
+  const sb=7+periods.length;
+  ws.getRow(sb).height=12;
+  ws.mergeCells(sb+1,1,sb+1,5);
+  xsc(ws.getCell(sb+1,1),
+    '* 위 사항을 확인하였으며, 확인하지 않아 발생하는 문제에 대해서는 본인이 책임지겠습니다.',
+    {align:'left',bg:XC.ORG,size:9,color:'FF78350F'});
+  ws.getRow(sb+1).height=20;
+  [['학생 확인:',sb+2],['학부모 확인:',sb+3]].forEach(([lbl,r])=>{
+    xsc(ws.getCell(r,3),lbl,{bold:true,bg:XC.G50});
+    // 서명칸(E열): 테두리/배경 없음
+    const signCell=ws.getCell(r,5);
+    signCell.value='(서명)';
+    signCell.font={color:{argb:XC.G400},name:'Malgun Gothic',size:10};
+    signCell.fill={type:'pattern',pattern:'none'};
+    signCell.border={};
+    signCell.alignment={horizontal:'center',vertical:'middle'};
+    ws.getRow(r).height=26;
+  });
+
+  ws.getColumn(1).width=18;
+  dates.forEach((_,i)=>{ws.getColumn(i+2).width=22;});
+  ws.getColumn(7).width=16;
+
+  ws.pageSetup.printArea='A1:E13';
+  ws.pageSetup.paperSize=9; // A4
+  ws.pageSetup.fitToPage=true;
+  ws.pageSetup.fitToWidth=1;
+  ws.pageSetup.fitToHeight=1;
+}
+
+// ── Sheet: 과목별 배정 현황 (매트릭스) ──
+function xlBuildSubjectSummary(wb){
+  const slots=G.slots;
+  const ws=wb.addWorksheet('과목별배정현황');
+  ws.properties.defaultRowHeight=22;
+
+  // 전체 시험실 목록 (배정 순서 기준 자연 정렬)
+  const allRoomNames=[...new Set(
+    G.subjects.flatMap(sub=>(G.roomAssignments[sub]||[]).map(r=>r.roomName))
+  )].sort((a,b)=>{
+    const na=parseInt(a)||0, nb=parseInt(b)||0;
+    return na!==nb ? na-nb : a.localeCompare(b);
+  });
+  const roomCount=allRoomNames.length;
+
+  // 날짜별 배경색 팔레트 (최대 8일)
+  const dayBgs=['FFFFF8E1','FFE8F5E9','FFE3F2FD','FFFCE4EC','FFF3E5F5','FFE0F2F1','FFFFF3E0','FFEDE7F6'];
+
+  // 헤더 행 1: "교실별 응시인원" + 시험실명
+  const FIXED=1; // A열: 과목명
+  ws.getCell(1,1).value='교실별 응시인원';
+  xhd(ws.getCell(1,1),'교실별 응시인원');
+  ws.getColumn(1).width=22;
+  allRoomNames.forEach((rn,ci)=>{
+    xhd(ws.getCell(1,FIXED+1+ci),rn);
+    ws.getColumn(FIXED+1+ci).width=8;
+  });
+  ws.getRow(1).height=28;
+  ws.views=[{state:'frozen',xSplit:1,ySplit:1}];
+
+  // 날짜별로 과목 그룹화하여 날짜 구분 행 + 과목 행 출력
+  const {dates,periods}=G.settings;
+  let ri=2;
+
+  dates.forEach((date,di)=>{
+    // 이 날짜에 배정된 과목
+    const subsOnDay=G.subjects.filter(sub=>{
+      const sl=slots[G.schedule[sub]];
+      return sl.dateIdx===di;
+    });
+    if(subsOnDay.length===0) return;
+
+    const dayBg=dayBgs[di%dayBgs.length];
+
+    // 날짜 구분 행
+    ws.mergeCells(ri,1,ri,FIXED+roomCount);
+    const dCell=ws.getCell(ri,1);
+    dCell.value=date.label;
+    dCell.font={bold:true,size:11,color:{argb:'FF374151'},name:'Malgun Gothic'};
+    dCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:dayBg}};
+    dCell.alignment={horizontal:'left',vertical:'middle'};
+    dCell.border=xb('FFD1D5DB').top;
+    ws.getRow(ri).height=20;
+    ri++;
+
+    // 교시 오름차순으로 정렬
+    subsOnDay.sort((a,b)=>{
+      const sa=slots[G.schedule[a]], sb=slots[G.schedule[b]];
+      return sa.periodIdx!==sb.periodIdx ? sa.periodIdx-sb.periodIdx : a.localeCompare(b);
+    });
+
+    subsOnDay.forEach(sub=>{
+      const slot=slots[G.schedule[sub]];
+      const rooms=G.roomAssignments[sub]||[];
+      const roomMap={};
+      rooms.forEach(r=>{ roomMap[r.roomName]=r.students.length; });
+
+      // A열: "과목명 (N교시)"
+      const aCell=ws.getCell(ri,1);
+      aCell.value=`${sub}  (${slot.periodNum}교시)`;
+      aCell.font={bold:false,size:10,color:{argb:XC.TXT},name:'Malgun Gothic'};
+      aCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.WHT}};
+      aCell.alignment={horizontal:'left',vertical:'middle'};
+      aCell.border=xb();
+
+      // 시험실별 인원
+      allRoomNames.forEach((rn,ci)=>{
+        const cell=ws.getCell(ri,FIXED+1+ci);
+        const cnt=roomMap[rn];
+        if(cnt!==undefined){
+          cell.value=cnt;
+          cell.font={size:10,color:{argb:XC.TXT},name:'Malgun Gothic'};
+          cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.WHT}};
+          cell.alignment={horizontal:'center',vertical:'middle'};
+          cell.border=xb();
+        } else {
+          cell.value='-';
+          cell.font={size:10,color:{argb:XC.G400},name:'Malgun Gothic'};
+          cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.G50}};
+          cell.alignment={horizontal:'center',vertical:'middle'};
+          cell.border=xb();
+        }
+      });
+      ws.getRow(ri).height=20;
+      ri++;
+    });
+  });
+
+  // 빈 구분 행
+  ws.getRow(ri).height=8; ri++;
+
+  // 도움반 학생수 행 (빈 입력 행)
+  ws.mergeCells(ri,1,ri,1);
+  const helpCell=ws.getCell(ri,1);
+  helpCell.value='도움반 학생수';
+  helpCell.font={bold:true,size:10,color:{argb:XC.TXT},name:'Malgun Gothic'};
+  helpCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF8E1'}};
+  helpCell.alignment={horizontal:'left',vertical:'middle'};
+  helpCell.border=xb('FFFCD34D');
+  allRoomNames.forEach((_,ci)=>{
+    const c=ws.getCell(ri,FIXED+1+ci);
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF8E1'}};
+    c.border=xb('FFFCD34D');
+  });
+  ws.getRow(ri).height=22; ri++;
+
+  // 교실별 필요 책상 개수 행 (MAX 인원 계산)
+  const maxCell=ws.getCell(ri,1);
+  maxCell.value='교실별 필요 책상 개수';
+  maxCell.font={bold:true,size:10,color:{argb:'FF374151'},name:'Malgun Gothic'};
+  maxCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFEF08A'}};
+  maxCell.alignment={horizontal:'left',vertical:'middle'};
+  maxCell.border=xb('FFFCD34D');
+
+  allRoomNames.forEach((rn,ci)=>{
+    // 이 시험실의 최대 착석 인원
+    let maxStu=0;
+    G.subjects.forEach(sub=>{
+      (G.roomAssignments[sub]||[]).forEach(r=>{
+        if(r.roomName===rn) maxStu=Math.max(maxStu,r.students.length);
+      });
+    });
+    const c=ws.getCell(ri,FIXED+1+ci);
+    c.value=maxStu>0?maxStu:'';
+    c.font={bold:true,size:10,color:{argb:'FF374151'},name:'Malgun Gothic'};
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFEF08A'}};
+    c.alignment={horizontal:'center',vertical:'middle'};
+    c.border=xb('FFFCD34D');
+  });
+  ws.getRow(ri).height=22;
+}
+
+// ── Sheet: 전체 개인 시간표 ──
+function xlBuildPersonalAll(wb){
+  const {dates,periods}=G.settings;
+  const ssm=buildSlotSubMap();
+  const ws=wb.addWorksheet('전체개인시간표');
+  ws.properties.defaultRowHeight=20;
+
+  const stuRoomMap={};
+  G.subjects.forEach(sub=>{
+    (G.roomAssignments[sub]||[]).forEach(room=>{
+      room.students.forEach((stu,si)=>{
+        const k=stu.id||stu.name;
+        if(!stuRoomMap[k])stuRoomMap[k]={};
+        stuRoomMap[k][sub]={room:room.roomName,seat:si+1};
+      });
+    });
+  });
+
+  const hdr=['학번','이름'];
+  dates.forEach(d=>periods.forEach(p=>hdr.push(`${d.label} ${p.num}교시`)));
+  hdr.push('총 과목 수');
+  hdr.forEach((h,i)=>xhd(ws.getCell(1,i+1),h));
+  ws.getRow(1).height=26;
+
+  const sorted=[...G.students].sort((a,b)=>a.cls!==b.cls?a.cls-b.cls:a.num-b.num);
+  sorted.forEach((stu,si)=>{
+    const ri=si+2, bg=si%2===0?XC.WHT:XC.G50;
+    const k=stu.id||stu.name, roomInfo=stuRoomMap[k]||{};
+    let cnt=0;
+    const row=[stu.id,stu.name];
+    dates.forEach((d,di)=>{
+      periods.forEach((p,pi)=>{
+        const subs=(ssm[`${di}-${pi}`]||[]).filter(s=>stu.subjects.includes(s));
+        if(subs.length>0){
+          row.push(subs.map(s=>{const r=roomInfo[s];return r?`${s}(${r.room} ${r.seat}번)`:s;}).join('\n'));
+          cnt+=subs.length;
+        } else { row.push('자습'); }
+      });
+    });
+    row.push(cnt);
+    row.forEach((val,ci)=>{
+      const isStudy=val==='자습';
+      xsc(ws.getCell(ri,ci+1),val,{bg:isStudy?XC.G100:bg,wrap:ci>=2,
+        color:isStudy?XC.G400:XC.TXT,size:9,align:'center'});
+    });
+    ws.getRow(ri).height=22;
+  });
+
+  const wids=[10,10,...Array(dates.length*periods.length).fill(20),8];
+  wids.forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+  ws.views=[{state:'frozen',ySplit:1,xSplit:2}];
+}
+
+async function downloadTimetable(){
+  if(!G.schedule||!G.settings){alert('먼저 시간표를 생성해주세요.');return;}
+  try{
+    const wb=new ExcelJS.Workbook();wb.creator='시험 시간표 자동 생성기';
+    xlBuildTimetable(wb);xlBuildSubjectSummary(wb);
+    await xlSave(wb,`${getExamTitle()}_전체시간표.xlsx`);
+  }catch(err){alert('다운로드 오류: '+err.message);}
+}
+
+async function downloadDB(){
+  if(!G.schedule||!G.settings){alert('먼저 시간표를 생성해주세요.');return;}
+  try{
+    const wb=new ExcelJS.Workbook();wb.creator='시험 시간표 자동 생성기';
+    xlBuildDB(wb);
+    await xlSave(wb,`${getExamTitle()}_이동시간표DB.xlsx`);
+  }catch(err){alert('다운로드 오류: '+err.message);}
+}
+
+async function downloadPersonal(){
+  if(!G.schedule||!G.settings){alert('먼저 시간표를 생성해주세요.');return;}
+  try{
+    const wb=new ExcelJS.Workbook();wb.creator='시험 시간표 자동 생성기';
+    xlBuildPersonalAll(wb);xlBuildDB(wb);xlBuildPersonalLookup(wb);
+    await xlSave(wb,`${getExamTitle()}_개인시간표.xlsx`);
+  }catch(err){alert('다운로드 오류: '+err.message);}
+}
+
+// ==========================================
+// 통합 다운로드
+// ==========================================
+async function downloadCombined(){
+  if(!G.schedule||!G.settings){alert('먼저 시간표를 생성해주세요.');return;}
+  try{
+    const wb=new ExcelJS.Workbook();wb.creator='시험 시간표 자동 생성기';
+    xlBuildTimetable(wb);xlBuildDB(wb);xlBuildPersonalLookup(wb);xlBuildSubjectSummary(wb);
+    await xlSave(wb,`${getExamTitle()}_통합시간표.xlsx`);
+  }catch(err){alert('다운로드 오류: '+err.message);}
+}
+
+// ==========================================
+// 반별 응시현황표
+// ==========================================
+function xlBuildClassAttendance(wb){
+  const {dates, periods, title} = G.settings;
+  const slots = G.slots;
+
+  // 학생별 응시 정보 맵: stuKey → { sub: { periodNum, roomName, seat } }
+  const stuExamMap = {};
+  G.subjects.forEach(sub => {
+    const slot = slots[G.schedule[sub]];
+    (G.roomAssignments[sub] || []).forEach(room => {
+      room.students.forEach((stu, si) => {
+        const k = stu.id || stu.name;
+        if (!stuExamMap[k]) stuExamMap[k] = { stu, exams: {} };
+        stuExamMap[k].exams[sub] = {
+          dateIdx: slot.dateIdx,
+          periodNum: slot.periodNum,
+          roomName: room.roomName,
+          seat: si + 1
+        };
+      });
+    });
+  });
+
+  // 반 목록 추출 (정렬)
+  const clsSet = new Set(G.students.map(s => s.cls));
+  const clsList = [...clsSet].sort((a, b) => a - b);
+
+  // 날짜별 시트 생성
+  dates.forEach((date, di) => {
+    // 이 날짜에 배정된 교시+과목 목록
+    const periodsOnDay = periods.map((p, pi) => {
+      const key = `${di}-${pi}`;
+      const subs = G.subjects.filter(s => {
+        const sl = slots[G.schedule[s]];
+        return sl.dateIdx === di && sl.periodIdx === pi;
+      });
+      return { period: p, pi, subs };
+    }).filter(x => x.subs.length > 0);
+
+    // 시트 이름: 날짜 레이블 (특수문자 제거)
+    const sheetName = date.label.replace(/[\/\\?*[\]]/g, '');
+    const ws = wb.addWorksheet(sheetName);
+    ws.properties.defaultRowHeight = 20;
+
+    // 제목 행
+    const totalCols = 2 + periodsOnDay.length; // 학번, 이름, 교시들
+    ws.mergeCells(1, 1, 1, totalCols);
+    xsc(ws.getCell(1, 1), `${title} — ${date.label} 반별 응시현황`, {
+      bold: true, size: 13, color: XC.WHT, bg: XC.PC
+    });
+    ws.getRow(1).height = 30;
+
+    // 교시 헤더 행
+    xhd(ws.getCell(2, 1), '학번');
+    xhd(ws.getCell(2, 2), '이름');
+    periodsOnDay.forEach(({ period, subs }, ci) => {
+      const label = `${period.num}교시 (${period.time})\n${subs.join(' / ')}`;
+      const cell = ws.getCell(2, 3 + ci);
+      xhd(cell, label);
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    });
+    ws.getRow(2).height = 36;
+    ws.getColumn(1).width = 12;
+    ws.getColumn(2).width = 12;
+    periodsOnDay.forEach((_, ci) => { ws.getColumn(3 + ci).width = 28; });
+    ws.views = [{ state: 'frozen', ySplit: 2 }];
+
+    let ri = 3;
+
+    clsList.forEach(cls => {
+      const clsStudents = G.students
+        .filter(s => s.cls === cls)
+        .sort((a, b) => a.num - b.num);
+
+      if (clsStudents.length === 0) return;
+
+      // 반 구분 행
+      ws.mergeCells(ri, 1, ri, totalCols);
+      xsc(ws.getCell(ri, 1), `${cls}반`, {
+        bold: true, size: 11, color: XC.PC, bg: XC.PLG, align: 'left'
+      });
+      ws.getRow(ri).height = 22;
+      ri++;
+
+      clsStudents.forEach(stu => {
+        const k = stu.id || stu.name;
+        const examInfo = stuExamMap[k]?.exams || {};
+        const bg = ri % 2 === 0 ? XC.WHT : XC.G50;
+
+        xsc(ws.getCell(ri, 1), stu.id, { bg, align: 'center' });
+        xsc(ws.getCell(ri, 2), stu.name, { bg, align: 'left' });
+
+        periodsOnDay.forEach(({ subs }, ci) => {
+          // 이 학생이 이 교시에 보는 과목
+          const myExams = subs.filter(s => {
+            const ex = examInfo[s];
+            return ex && ex.dateIdx === di;
+          });
+          let cellVal = '';
+          if (myExams.length > 0) {
+            cellVal = myExams.map(s => {
+              const ex = examInfo[s];
+              return `${s} [${ex.roomName} ${ex.seat}번]`;
+            }).join('\n');
+            xsc(ws.getCell(ri, 3 + ci), cellVal, { bg: XC.WHT, align: 'left', wrap: true });
+          } else {
+            xsc(ws.getCell(ri, 3 + ci), '자습', { bg: XC.G100, color: XC.G400, align: 'center', italic: true });
+          }
+        });
+
+        ws.getRow(ri).height = 22;
+        ri++;
+      });
+
+      // 반 구분 공백 행
+      ws.getRow(ri).height = 6;
+      ri++;
+    });
+
+    // 인쇄 설정
+    ws.pageSetup.paperSize = 9; // A4
+    ws.pageSetup.orientation = 'landscape';
+    ws.pageSetup.fitToPage = true;
+    ws.pageSetup.fitToWidth = 1;
+    ws.pageSetup.fitToHeight = 0;
+    ws.pageSetup.margins = { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 };
+  });
+}
+
+async function downloadClassAttendance(){
+  if(!G.schedule||!G.settings){alert('먼저 시간표를 생성해주세요.');return;}
+  try{
+    const wb=new ExcelJS.Workbook();wb.creator='시험 시간표 자동 생성기';
+    xlBuildClassAttendance(wb);
+    await xlSave(wb,`${getExamTitle()}_반별응시현황.xlsx`);
+  }catch(err){alert('다운로드 오류: '+err.message);}
+}
+
+// ── Sheet: 교실별 응시현황표 ──
+// 구조: 날짜별 시트 → 교시별 블록 → 교실별 테이블 (착석번호 | 학번 | 이름 | 원래반)
+function xlBuildRoomAttendance(wb){
+  const {dates, periods, title} = G.settings;
+  const slots = G.slots;
+  const COL = 3; // 착석번호 | 학번 | 이름
+
+  // ── 날짜별 시트: 교시→교실 블록 ──
+  dates.forEach((date, di) => {
+    const sheetName = date.label.replace(/[\/\\?*[\]：:]/g, '').trim();
+    const ws = wb.addWorksheet(sheetName);
+    ws.properties.defaultRowHeight = 20;
+
+    const periodsOnDay = [];
+    periods.forEach((p, pi) => {
+      const subsInSlot = G.subjects.filter(s => {
+        const sl = slots[G.schedule[s]];
+        return sl.dateIdx === di && sl.periodIdx === pi;
+      });
+      if(subsInSlot.length === 0) return;
+      const rooms = [];
+      subsInSlot.forEach(sub => {
+        (G.roomAssignments[sub] || []).forEach(room => rooms.push({ sub, room }));
+      });
+      periodsOnDay.push({ period: p, subsInSlot, rooms });
+    });
+
+    // 제목
+    ws.mergeCells(1, 1, 1, COL);
+    const titleCell1 = ws.getCell(1,1);
+    titleCell1.value = `${title} — ${date.label} 교실별 응시현황`;
+    titleCell1.font = {bold:true, size:12, color:{argb:XC.WHT}, name:'Malgun Gothic'};
+    titleCell1.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XC.PC}};
+    titleCell1.alignment = {horizontal:'left', vertical:'middle', wrapText:false};
+    ws.getRow(1).height = 30;
+    ws.getColumn(1).width = 10;  // 착석번호
+    ws.getColumn(2).width = 16;  // 학번
+    ws.getColumn(3).width = 52;  // 이름 (제목 표시 공간 확보)
+
+    let ri = 2;
+    periodsOnDay.forEach(({ period, subsInSlot, rooms }) => {
+      ws.mergeCells(ri, 1, ri, COL);
+      const pCell = ws.getCell(ri,1);
+      pCell.value = `${period.num}교시 (${period.time})  ${subsInSlot.join(' / ')}`;
+      pCell.font = {bold:true, size:11, color:{argb:XC.WHT}, name:'Malgun Gothic'};
+      pCell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF334155'}};
+      pCell.alignment = {horizontal:'left', vertical:'middle', wrapText:false};
+      ws.getRow(ri).height = 24;
+      ri++;
+
+      rooms.forEach(({ sub, room }) => {
+        ws.mergeCells(ri, 1, ri, COL);
+        const rCell = ws.getCell(ri,1);
+        rCell.value = `${room.roomName}  [${sub}]  총 ${room.students.length}명`;
+        rCell.font = {bold:true, size:10, color:{argb:XC.PC}, name:'Malgun Gothic'};
+        rCell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XC.PLG}};
+        rCell.alignment = {horizontal:'left', vertical:'middle', wrapText:false};
+        ws.getRow(ri).height = 22;
+        ri++;
+
+        ['착석번호','학번','이름'].forEach((h,ci) => xhd(ws.getCell(ri, ci+1), h));
+        ws.getRow(ri).height = 22;
+        ri++;
+
+        room.students.forEach((stu, si) => {
+          const bg = si % 2 === 0 ? XC.WHT : XC.G50;
+          xsc(ws.getCell(ri,1), si+1,     {bg, align:'center'});
+          xsc(ws.getCell(ri,2), stu.id,   {bg, align:'center'});
+          xsc(ws.getCell(ri,3), stu.name, {bg, align:'left'});
+          ws.getRow(ri).height = 20;
+          ri++;
+        });
+
+        ws.getRow(ri).height = 6; ri++;
+      });
+      ws.getRow(ri).height = 8; ri++;
+    });
+
+    ws.pageSetup.paperSize = 9;
+    ws.pageSetup.orientation = 'portrait';
+    ws.pageSetup.fitToPage = true;
+    ws.pageSetup.fitToWidth = 1;
+    ws.pageSetup.fitToHeight = 0;
+    ws.pageSetup.margins = {left:0.5, right:0.5, top:0.75, bottom:0.75, header:0.3, footer:0.3};
+  });
+
+  // ── 시험실별 시트: 시험실 하나당 1장, 날짜→교시 순 블록 ──
+  // 전체 시험실 목록 수집 (배정된 순서 기준으로 정렬)
+  const roomMap = new Map(); // roomName → [{sub, slot, students}]
+  dates.forEach((date, di) => {
+    periods.forEach((p, pi) => {
+      const subsInSlot = G.subjects.filter(s => {
+        const sl = slots[G.schedule[s]];
+        return sl.dateIdx === di && sl.periodIdx === pi;
+      });
+      subsInSlot.forEach(sub => {
+        (G.roomAssignments[sub] || []).forEach(room => {
+          if(!roomMap.has(room.roomName)) roomMap.set(room.roomName, []);
+          roomMap.get(room.roomName).push({
+            sub, date, di, period: p, pi, students: room.students
+          });
+        });
+      });
+    });
+  });
+
+  // 시험실명 자연 정렬 (1반, 2반, 10반 순)
+  const roomNames = [...roomMap.keys()].sort((a,b) => {
+    const na = parseInt(a) || a, nb = parseInt(b) || b;
+    return na < nb ? -1 : na > nb ? 1 : 0;
+  });
+
+  roomNames.forEach(roomName => {
+    const entries = roomMap.get(roomName); // 이미 날짜×교시 순으로 수집됨
+
+    const ws = wb.addWorksheet(roomName);
+    ws.properties.defaultRowHeight = 20;
+    ws.getColumn(1).width = 10;  // 착석번호
+    ws.getColumn(2).width = 16;  // 학번
+    ws.getColumn(3).width = 52;  // 이름 (제목 표시 공간 확보)
+
+    // 제목
+    ws.mergeCells(1, 1, 1, COL);
+    const titleCellR = ws.getCell(1,1);
+    titleCellR.value = `${title} — ${roomName} 응시현황`;
+    titleCellR.font = {bold:true, size:12, color:{argb:XC.WHT}, name:'Malgun Gothic'};
+    titleCellR.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XC.PC}};
+    titleCellR.alignment = {horizontal:'left', vertical:'middle', wrapText:false};
+    ws.getRow(1).height = 30;
+
+    let ri = 2;
+
+    entries.forEach(({ sub, date, period, students }) => {
+      // 날짜+교시+과목 블록 제목
+      ws.mergeCells(ri, 1, ri, COL);
+      const bCell = ws.getCell(ri,1);
+      bCell.value = `${date.label}  ${period.num}교시 (${period.time})  ${sub}  총 ${students.length}명`;
+      bCell.font = {bold:true, size:11, color:{argb:XC.WHT}, name:'Malgun Gothic'};
+      bCell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF334155'}};
+      bCell.alignment = {horizontal:'left', vertical:'middle', wrapText:false};
+      ws.getRow(ri).height = 24;
+      ri++;
+
+      // 헤더
+      ['착석번호','학번','이름'].forEach((h,ci) => xhd(ws.getCell(ri, ci+1), h));
+      ws.getRow(ri).height = 22;
+      ri++;
+
+      // 학생 목록 (착석번호 순)
+      students.forEach((stu, si) => {
+        const bg = si % 2 === 0 ? XC.WHT : XC.G50;
+        xsc(ws.getCell(ri,1), si+1,       {bg, align:'center'});
+        xsc(ws.getCell(ri,2), stu.id,     {bg, align:'center'});
+        xsc(ws.getCell(ri,3), stu.name,   {bg, align:'left'});
+        ws.getRow(ri).height = 20;
+        ri++;
+      });
+
+      ws.getRow(ri).height = 8; ri++;
+    });
+
+    ws.pageSetup.paperSize = 9;
+    ws.pageSetup.orientation = 'portrait';
+    ws.pageSetup.fitToPage = true;
+    ws.pageSetup.fitToWidth = 1;
+    ws.pageSetup.fitToHeight = 0;
+    ws.pageSetup.margins = {left:0.5, right:0.5, top:0.75, bottom:0.75, header:0.3, footer:0.3};
+  });
+}
+
+async function downloadRoomAttendance(){
+  if(!G.schedule||!G.settings){alert('먼저 시간표를 생성해주세요.');return;}
+  try{
+    const wb=new ExcelJS.Workbook();wb.creator='시험 시간표 자동 생성기';
+    xlBuildRoomAttendance(wb);
+    await xlSave(wb,`${getExamTitle()}_교실별응시현황.xlsx`);
+  }catch(err){alert('다운로드 오류: '+err.message);}
+}
+
+// ==========================================
+// 템플릿 다운로드
+// ==========================================
+function downloadTemplate(format = 'wide') {
+  const wb = XLSX.utils.book_new();
+  const subjects = ['수학Ⅰ', '영어Ⅰ', '문학', '사회와문화', '생명과학', '세계사', '주제탐구독서', '기하', '윤리와사상', '화학'];
+
+  if (format === 'wide') {
+    // ── 가로형 ──
+    const header = ['반', '번호', '학번', '이름', ...subjects];
+    const sampleData = [
+      [1, 1, 20101, '홍길동', '○','○','○','○','○','','','','',''],
+      [1, 2, 20102, '김영희', '○','○','○','','','○','○','','○',''],
+      [1, 3, 20103, '이철수', '○','○','○','○','','','○','','','○'],
+      [2, 1, 20201, '박민지', '○','○','○','','○','','','○','',''],
+      [2, 2, 20202, '최수진', '○','○','○','○','','','','','○','○'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([header, ...sampleData]);
+    ws['!cols'] = [{wch:5},{wch:5},{wch:10},{wch:10}, ...subjects.map(()=>({wch:14}))];
+    XLSX.utils.book_append_sheet(wb, ws, '수강정보');
+
+    const guide = [
+      ['📋 가로형 수강정보 입력 형식 안내'],[''],
+      ['■ 형식: 반 | 번호 | 학번 | 이름 | 과목1 | 과목2 | ...'],
+      ['■ 수강 표시: ○, ✓, O, o, 1, 또는 아무 값 (빈칸이면 미수강)'],
+      ['■ 미수강: 빈 칸 (0, X, x, - 도 미수강으로 처리)'],[''],
+      ['반', '학급 번호 (숫자)'],['번호', '반 내 출석 번호 (숫자)'],
+      ['학번', '예: 20101 = 2학년 1반 1번'],['이름', '학생 이름'],
+      ['과목 열', '헤더에 과목명, 수강하면 ○ 표시'],
+    ];
+    const wsG = XLSX.utils.aoa_to_sheet(guide);
+    wsG['!cols'] = [{wch:20},{wch:50}];
+    XLSX.utils.book_append_sheet(wb, wsG, '입력형식안내');
+    XLSX.writeFile(wb, '수강정보_입력양식_가로형.xlsx');
+
+  } else {
+    // ── 세로형 ──
+    const header = ['반', '번호', '학번', '이름', '과목명'];
+    const sampleData = [
+      [1, 1, 20101, '홍길동', '수학Ⅰ'],
+      [1, 1, 20101, '홍길동', '영어Ⅰ'],
+      [1, 1, 20101, '홍길동', '문학'],
+      [1, 1, 20101, '홍길동', '사회와문화'],
+      [1, 1, 20101, '홍길동', '생명과학'],
+      [1, 2, 20102, '김영희', '수학Ⅰ'],
+      [1, 2, 20102, '김영희', '영어Ⅰ'],
+      [1, 2, 20102, '김영희', '문학'],
+      [1, 2, 20102, '김영희', '세계사'],
+      [1, 2, 20102, '김영희', '주제탐구독서'],
+      [2, 1, 20201, '박민지', '수학Ⅰ'],
+      [2, 1, 20201, '박민지', '영어Ⅰ'],
+      [2, 1, 20201, '박민지', '문학'],
+      [2, 1, 20201, '박민지', '생명과학'],
+      [2, 1, 20201, '박민지', '기하'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([header, ...sampleData]);
+    ws['!cols'] = [{wch:5},{wch:5},{wch:10},{wch:10},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, ws, '수강정보');
+
+    const guide = [
+      ['📋 세로형 수강정보 입력 형식 안내'],[''],
+      ['■ 형식: 반 | 번호 | 학번 | 이름 | 과목명'],
+      ['■ 학생 1명이 여러 과목을 수강하면 행을 여러 개 작성'],
+      ['■ 동일 학번(또는 이름)으로 여러 행을 작성하면 자동 합산'],[''],
+      ['반', '학급 번호 (숫자)'],['번호', '반 내 출석 번호 (숫자)'],
+      ['학번', '예: 20101 = 2학년 1반 1번'],['이름', '학생 이름'],
+      ['과목명', '수강 과목명 (한 행에 하나씩)'],
+    ];
+    const wsG = XLSX.utils.aoa_to_sheet(guide);
+    wsG['!cols'] = [{wch:20},{wch:50}];
+    XLSX.utils.book_append_sheet(wb, wsG, '입력형식안내');
+    XLSX.writeFile(wb, '수강정보_입력양식_세로형.xlsx');
+  }
+}
+
+// ==========================================
+// 핵심 과목 그룹 / 자습 슬롯
+// ==========================================
+let coreGroupCount = 0;
+
+function addCoreGroup(value = '') {
+  coreGroupCount++;
+  const id = `coreGroup_${coreGroupCount}`;
+  const div = document.createElement('div');
+  div.className = 'd-flex align-items-center gap-2';
+  div.id = id;
+  div.innerHTML = `
+    <label style="min-width:52px;font-size:13px;color:#6b7280;flex-shrink:0;">그룹 <span class="cg-num">${document.querySelectorAll('#coreGroupList > div').length + 1}</span></label>
+    <input type="text" class="form-control form-control-sm core-group-input" value="${value}" placeholder="예: 국어,영어,수학 (쉼표로 구분)">
+    <button class="btn btn-sm btn-outline-danger" onclick="removeCoreGroup('${id}')">✕</button>
+  `;
+  document.getElementById('coreGroupList').appendChild(div);
+}
+
+function removeCoreGroup(id) {
+  document.getElementById(id)?.remove();
+  document.querySelectorAll('#coreGroupList > div').forEach((div, i) => {
+    const num = div.querySelector('.cg-num');
+    if (num) num.textContent = i + 1;
+  });
+}
+
+function getCoreGroups() {
+  return [...document.querySelectorAll('.core-group-input')]
+    .map(input => input.value.trim())
+    .filter(v => v)
+    .map(v => v.split(',').map(s => s.trim()).filter(s => s))
+    .filter(group => group.length >= 1);
+}
+
+function getStudySlots() {
+  const forbidden = new Set();
+  document.querySelectorAll('.study-slot-check:checked').forEach(cb => {
+    forbidden.add(cb.dataset.key);
+  });
+  return forbidden;
+}
+
+function updateStudySection() {
+  const dates = getDates();
+  const periods = getPeriods();
+  const container = document.getElementById('studySlotSection');
+  if (!dates.length || !periods.length) {
+    container.innerHTML = '<div class="status-box status-warn">⚠️ 날짜와 교시를 먼저 입력해주세요.</div>';
+    return;
+  }
+  // 기존 체크 상태 보존
+  const existing = new Set();
+  document.querySelectorAll('.study-slot-check:checked').forEach(cb => existing.add(cb.dataset.key));
+
+  let html = '<div style="overflow-x:auto;"><table class="table table-sm table-bordered" style="font-size:12px;max-width:700px;">';
+  html += '<thead><tr><th style="background:#f8fafc;">교시</th>';
+  dates.forEach(d => html += `<th style="background:#f8fafc;text-align:center;">${d.label}</th>`);
+  html += '</tr></thead><tbody>';
+  periods.forEach((p, pi) => {
+    html += `<tr><td class="fw-semibold" style="white-space:nowrap;">${p.num}교시<br><small style="color:#888;font-weight:normal;">${p.time}</small></td>`;
+    dates.forEach((d, di) => {
+      const key = `${di}-${pi}`;
+      const checked = existing.has(key) ? 'checked' : '';
+      html += `<td style="text-align:center;vertical-align:middle;">
+        <label style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;">
+          <input type="checkbox" class="study-slot-check" data-key="${key}" ${checked}>
+          <span style="font-size:10px;color:#aaa;">자습</span>
+        </label>
+      </td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// ==========================================
+// 하루 시험 부담 리포트
+// ==========================================
+function renderLoadReport() {
+  const div = document.getElementById('loadReport');
+  if (!div || !G.settings) return;
+  const slots = G.slots;
+  const dates = G.settings.dates;
+
+  // 학생별·날짜별 과목 수집 — 객체 참조(Map)로 키 충돌 완전 방지
+  const stuMap = new Map(); // stu 객체 reference → {days: {}}
+  G.students.forEach(stu => stuMap.set(stu, { days: {} }));
+  G.subjects.forEach(sub => {
+    if (G.schedule[sub] === undefined) return;
+    const slot = slots[G.schedule[sub]];
+    const di = slot.dateIdx;
+    (G.roomAssignments[sub] || []).forEach(room => {
+      room.students.forEach(stu => {
+        const entry = stuMap.get(stu);
+        if (!entry) return;
+        if (!entry.days[di]) entry.days[di] = [];
+        entry.days[di].push(sub);
+      });
+    });
+  });
+
+  // 학생별 분류 (5단계)
+  // noExam: 시험 날짜에 한 과목도 없음
+  // heavy: 하루 전체 교시 이상인 날이 있음
+  // lone: 하루 1과목만인 날이 있음 (heavy 아님)
+  // good: 모든 시험 날짜에 2과목씩 (이상적)
+  // mixed: 2과목 이상이지만 날짜마다 고르지 않음 (위 해당 없음)
+  const reportNumPeriods = (G.settings?.periods || []).length || 3;
+  const buckets = { noExam: [], heavy: [], lone: [], good: [], mixed: [] };
+  const heavyList = [];
+
+  G.students.forEach(stu => {
+    const entry = stuMap.get(stu);
+    const days = entry?.days || {};
+    const dayCounts = Object.values(days).map(subs => subs.length);
+    const totalSubjects = stu.subjects.length;
+
+    if (totalSubjects === 0 || dayCounts.length === 0) {
+      buckets.noExam.push(stu);
+      return;
+    }
+
+    const maxPerDay = Math.max(...dayCounts);
+    const hasLoneDay = dayCounts.some(c => c === 1);
+
+    if (maxPerDay >= reportNumPeriods) {
+      buckets.heavy.push(stu);
+      Object.entries(days).forEach(([diStr, subs]) => {
+        if (subs.length >= reportNumPeriods) heavyList.push({ stu, dateIdx: parseInt(diStr), subs });
+      });
+    } else if (hasLoneDay) {
+      buckets.lone.push(stu);
+    } else if (dayCounts.every(c => c === 2)) {
+      buckets.good.push(stu);
+    } else {
+      buckets.mixed.push(stu);
+    }
+  });
+
+  const totalRegistered = G.students.length;
+  const bucketTotal = buckets.noExam.length + buckets.heavy.length + buckets.lone.length + buckets.good.length + buckets.mixed.length;
+
+  let html = '<div class="fw-semibold mb-2" style="font-size:14px;">📊 학생별 하루 시험 과목 수 분석</div>';
+  html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;">';
+  [
+    { list: buckets.noExam, label: '시험 과목 없는 학생',       bg: '#f3f4f6', border: '#d1d5db', icon: '⚫' },
+    { list: buckets.heavy,  label: `하루 ${reportNumPeriods}과목(전체교시) 있는 학생`, bg: '#fee2e2', border: '#fca5a5', icon: '🔴' },
+    { list: buckets.lone,   label: '하루 1과목만인 날 있는 학생', bg: '#fef3c7', border: '#fcd34d', icon: '🟡' },
+    { list: buckets.mixed,  label: '날짜별 과목 수 혼합',        bg: '#e0f2fe', border: '#7dd3fc', icon: '🔵' },
+    { list: buckets.good,   label: '매일 딱 2과목 (이상적)',     bg: '#d1fae5', border: '#6ee7b7', icon: '🟢' },
+  ].forEach(({ list, label, bg, border, icon }) => {
+    html += `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:10px 18px;text-align:center;min-width:130px;">
+      <div style="font-size:22px;font-weight:700;">${list.length}<span style="font-size:13px;font-weight:400;">명</span></div>
+      <div style="font-size:12px;">${icon} ${label}</div>
+    </div>`;
+  });
+  const totalMatch = bucketTotal === totalRegistered;
+  html += `<div style="background:${totalMatch?'#eff6ff':'#fff7ed'};border:1px solid ${totalMatch?'#93c5fd':'#fdba74'};border-radius:8px;padding:10px 18px;text-align:center;min-width:120px;">
+    <div style="font-size:22px;font-weight:700;">${bucketTotal}<span style="font-size:13px;font-weight:400;">명</span></div>
+    <div style="font-size:12px;">${totalMatch?'✅':'⚠️'} 합계 (등록: ${totalRegistered}명)</div>
+  </div>`;
+  html += '</div>';
+  html += `<div style="font-size:11px;color:#6b7280;margin-bottom:10px;">※ 분류 우선순위: 시험없음 → 전체교시(${reportNumPeriods}과목)이상 → 1과목만인날 → 날짜별혼합 → 매일2과목</div>`;
+
+  // 시험 과목 없는 학생 목록
+  if (buckets.noExam.length > 0) {
+    html += `<div class="status-box status-warn">⚫ 시험 과목이 없는 학생: ${buckets.noExam.length}명</div>`;
+    html += '<div style="overflow-x:auto;margin-top:4px;margin-bottom:8px;"><table class="table table-sm table-bordered" style="font-size:12px;">';
+    html += '<thead><tr><th>학번</th><th>이름</th></tr></thead><tbody>';
+    buckets.noExam.forEach(stu => {
+      html += `<tr><td>${stu.id}</td><td class="fw-semibold">${stu.name}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // 전체교시 이상 상세 목록
+  if (heavyList.length === 0) {
+    html += `<div class="status-box status-ok">✅ 하루에 ${reportNumPeriods}과목(전체 교시) 시험을 보는 학생이 없습니다.</div>`;
+  } else {
+    heavyList.sort((a, b) => String(a.stu.id).localeCompare(String(b.stu.id)));
+    html += `<div class="status-box status-err">⚠️ 하루 ${reportNumPeriods}과목(전체 교시) 시험 학생: ${buckets.heavy.length}명 (${heavyList.length}건)</div>`;
+    html += '<div style="overflow-x:auto;margin-top:8px;"><table class="table table-sm table-bordered" style="font-size:12px;">';
+    html += '<thead><tr><th>학번</th><th>이름</th><th>날짜</th><th>해당 날 과목들</th></tr></thead><tbody>';
+    heavyList.forEach(({ stu, dateIdx, subs }) => {
+      const dateLabel = dates[dateIdx]?.label || `${dateIdx + 1}일차`;
+      html += `<tr><td>${stu.id}</td><td class="fw-semibold">${stu.name}</td>
+        <td>${dateLabel}</td><td>${subs.join(', ')}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+  div.innerHTML = html;
+}
+
+// 날짜/교시 변경시 고정 배정 + 자습 슬롯 섹션 업데이트
+document.addEventListener('input', e => {
+  if (e.target.closest('#dateList') || e.target.closest('#periodList')) {
+    setTimeout(() => { updateFixedSection(); updateStudySection(); }, 200);
+  }
+});
+
+// ==========================================
+// 작업 저장 / 불러오기 (JSON 파일)
+// ==========================================
+
+function setCurrentFileTag(name, savedAt) {
+  document.getElementById('currentFileName').textContent = name;
+  document.getElementById('currentFileSavedAt').textContent = savedAt ? `(${savedAt})` : '';
+  document.getElementById('currentFileTag').style.display = 'flex';
+}
+
+function saveWork() {
+  const inputName = document.getElementById('saveNameInput').value.trim();
+  const currentName = document.getElementById('currentFileName').textContent.trim();
+  const name = inputName || currentName;
+  if (!name) { showAlertModal('저장 이름을 입력해주세요.'); return; }
+
+  const snapshot = {
+    name,
+    savedAt: new Date().toLocaleString('ko-KR'),
+    schoolYear: document.getElementById('schoolYear').value,
+    semester:   document.getElementById('semester').value,
+    examNum:    document.getElementById('examNum').value,
+    grade:      document.getElementById('grade').value,
+    maxPerRoom: document.getElementById('maxPerRoom').value,
+    allowSameSlot:  document.getElementById('allowSameSlot').checked,
+    noLoneExamDay:  document.getElementById('noLoneExamDay').checked,
+    spreadExamDays: document.getElementById('spreadExamDays').checked,
+    dates:      getDates().map(d => d.dateValue),
+    periods:    getPeriods().map(p => p.time),
+    rooms:      getRooms(),
+    coreGroups: getCoreGroups(),
+    studySlots: [...getStudySlots()],
+    students:   G.students,
+    subjects:   G.subjects,
+    schedule:   G.schedule,
+    roomAssignments: G.roomAssignments
+      ? Object.fromEntries(Object.entries(G.roomAssignments).map(([sub, rooms]) => [
+          sub, rooms.map(r => ({ roomName: r.roomName, students: r.students }))
+        ]))
+      : null,
+    slots:    G.slots,
+    conflicts: G.conflicts
+      ? Object.fromEntries(Object.entries(G.conflicts).map(([k,v]) => [k, [...v]]))
+      : null,
+    settings: G.settings,
+  };
+
+  const json = JSON.stringify(snapshot, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  // 파일명에 사용 불가 문자 제거
+  const safeName = name.replace(/[\\/:*?"<>|]/g, '_');
+  a.href     = url;
+  a.download = `${safeName}_시험시간표.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  document.getElementById('saveNameInput').value = '';
+  setCurrentFileTag(name, new Date().toLocaleString('ko-KR'));
+}
+
+function showAlertModal(message, title) {
+  document.getElementById('alertModalTitle').textContent = title || '알림';
+  document.getElementById('alertModalBody').innerHTML = message;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('alertModal')).show();
+}
+
+function showConfirmModal(message, onConfirm) {
+  document.getElementById('confirmModalBody').innerHTML = message;
+  const modalEl = document.getElementById('confirmModal');
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  const okBtn = document.getElementById('confirmModalOk');
+  const newOk = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOk, okBtn);
+  newOk.addEventListener('click', () => { modal.hide(); onConfirm(); });
+  modal.show();
+}
+
+function applySnapshot(snap) {
+  document.getElementById('schoolYear').value = snap.schoolYear || '';
+  document.getElementById('semester').value   = snap.semester   || '1';
+  document.getElementById('examNum').value    = snap.examNum    || '1';
+  document.getElementById('grade').value      = snap.grade      || '2';
+  document.getElementById('maxPerRoom').value = snap.maxPerRoom || '28';
+  document.getElementById('allowSameSlot').checked  = snap.allowSameSlot  || false;
+  document.getElementById('noLoneExamDay').checked  = snap.noLoneExamDay  || false;
+  document.getElementById('spreadExamDays').checked = snap.spreadExamDays || false;
+
+  document.getElementById('dateList').innerHTML = '';
+  dateCount = 0;
+  (snap.dates || []).forEach(d => addDate(d));
+
+  document.getElementById('periodList').innerHTML = '';
+  periodCount = 0;
+  (snap.periods || []).forEach((t, i) => addPeriod(String(i + 1), t));
+
+  document.getElementById('roomList').innerHTML = '';
+  (snap.rooms || []).forEach(r => addRoom(r.name, r.isStudy));
+
+  document.getElementById('coreGroupList').innerHTML = '';
+  (snap.coreGroups || []).forEach(g => addCoreGroup(g.join(',')));
+
+  G.students = snap.students || [];
+  G.subjects  = snap.subjects  || [];
+  G.schedule  = snap.schedule  || null;
+  G.slots     = snap.slots     || null;
+  G.settings  = snap.settings  || null;
+  G.conflicts = snap.conflicts
+    ? Object.fromEntries(Object.entries(snap.conflicts).map(([k,v]) => [k, new Set(v)]))
+    : null;
+  G.roomAssignments = snap.roomAssignments
+    ? Object.fromEntries(Object.entries(snap.roomAssignments).map(([sub, rooms]) => [
+        sub, rooms.map(r => ({ roomName: r.roomName, students: r.students }))
+      ]))
+    : null;
+
+  updateFixedSection();
+  updateStudySection();
+
+  if (G.students.length > 0) {
+    const statusDiv = document.getElementById('uploadStatus');
+    if (statusDiv) statusDiv.innerHTML =
+      `<div class="status-box status-ok">✅ ${G.students.length}명, ${G.subjects.length}개 과목 (저장된 데이터 복원)</div>`;
+    const resultDiv = document.getElementById('uploadResult');
+    if (resultDiv) resultDiv.style.display = 'block';
+  }
+
+  if (G.schedule && G.slots && G.settings) {
+    renderPreview(G.slots, G.schedule, G.settings.dates, G.settings.periods);
+    renderLoadReport();
+    document.getElementById('previewSection').style.display = 'block';
+    document.getElementById('downloadSection').style.display = 'block';
+  }
+
+  setCurrentFileTag(snap.name || '', snap.savedAt || '');
+}
+
+function loadWorkFromFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let snap;
+    try { snap = JSON.parse(e.target.result); }
+    catch { showAlertModal('올바른 저장 파일이 아닙니다.'); return; }
+
+    const displayName = snap.name || file.name;
+    showConfirmModal(
+      `<strong>"${displayName}"</strong>을(를) 불러올까요?<br>
+       <span style="font-size:12px;color:#6b7280;">현재 작업 내용이 초기화됩니다.</span>`,
+      () => applySnapshot(snap)
+    );
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+</script>
+
+<!-- ===== 알림 모달 ===== -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:380px;">
+    <div class="modal-content" style="border-radius:14px;border:none;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+      <div class="modal-header border-0 pb-1">
+        <h6 class="modal-title fw-bold" id="alertModalTitle" style="font-size:15px;">알림</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="alertModalBody" style="font-size:14px;padding-top:8px;"></div>
+      <div class="modal-footer border-0 pt-1">
+        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">확인</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 확인 모달 ===== -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+    <div class="modal-content" style="border-radius:14px;border:none;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+      <div class="modal-header border-0 pb-1">
+        <h6 class="modal-title fw-bold" style="font-size:15px;">📂 작업 불러오기</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="confirmModalBody" style="font-size:14px;padding-top:8px;"></div>
+      <div class="modal-footer border-0 pt-1">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary btn-sm" id="confirmModalOk">확인</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
