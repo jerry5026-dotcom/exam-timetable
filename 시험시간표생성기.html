@@ -792,6 +792,10 @@ function generateSchedule() {
   const periods = getPeriods();
   const maxPerRoom = parseInt(document.getElementById('maxPerRoom').value) || 28;
 
+  if (!document.getElementById('schoolYear').value) {
+    resultDiv.innerHTML = '<div class="status-box status-err">❌ 학년도를 입력해주세요.</div>';
+    return;
+  }
   if (!G.students.length) {
     resultDiv.innerHTML = '<div class="status-box status-err">❌ 수강 정보를 먼저 업로드해주세요.</div>';
     return;
@@ -1564,7 +1568,9 @@ function xlBuildPersonalLookup(wb){
   dates.forEach((_,i)=>{ws.getColumn(i+2).width=22;});
   ws.getColumn(7).width=16;
 
-  ws.pageSetup.printArea='A1:E13';
+  const printLastRow = 10 + periods.length;
+  const printLastColIdx = Math.max(dates.length + 1, 5);
+  ws.pageSetup.printArea=`A1:${String.fromCharCode(64+printLastColIdx)}${printLastRow}`;
   ws.pageSetup.paperSize=9; // A4
   ws.pageSetup.fitToPage=true;
   ws.pageSetup.fitToWidth=1;
@@ -1720,13 +1726,12 @@ function xlBuildPersonalAll(wb){
   const ws=wb.addWorksheet('전체개인시간표');
   ws.properties.defaultRowHeight=20;
 
-  const stuRoomMap={};
+  const stuRoomMap=new Map();
   G.subjects.forEach(sub=>{
     (G.roomAssignments[sub]||[]).forEach(room=>{
       room.students.forEach((stu,si)=>{
-        const k=stu.id||stu.name;
-        if(!stuRoomMap[k])stuRoomMap[k]={};
-        stuRoomMap[k][sub]={room:room.roomName,seat:si+1};
+        if(!stuRoomMap.has(stu)) stuRoomMap.set(stu,{});
+        stuRoomMap.get(stu)[sub]={room:room.roomName,seat:si+1};
       });
     });
   });
@@ -1740,7 +1745,7 @@ function xlBuildPersonalAll(wb){
   const sorted=[...G.students].sort((a,b)=>a.cls!==b.cls?a.cls-b.cls:a.num-b.num);
   sorted.forEach((stu,si)=>{
     const ri=si+2, bg=si%2===0?XC.WHT:XC.G50;
-    const k=stu.id||stu.name, roomInfo=stuRoomMap[k]||{};
+    const roomInfo=stuRoomMap.get(stu)||{};
     let cnt=0;
     const row=[stu.id,stu.name];
     dates.forEach((d,di)=>{
@@ -1812,15 +1817,14 @@ function xlBuildClassAttendance(wb){
   const {dates, periods, title} = G.settings;
   const slots = G.slots;
 
-  // 학생별 응시 정보 맵: stuKey → { sub: { periodNum, roomName, seat } }
-  const stuExamMap = {};
+  // 학생별 응시 정보 맵: stu 객체 참조 → { exams: { sub: { periodNum, roomName, seat } } }
+  const stuExamMap = new Map();
   G.subjects.forEach(sub => {
     const slot = slots[G.schedule[sub]];
     (G.roomAssignments[sub] || []).forEach(room => {
       room.students.forEach((stu, si) => {
-        const k = stu.id || stu.name;
-        if (!stuExamMap[k]) stuExamMap[k] = { stu, exams: {} };
-        stuExamMap[k].exams[sub] = {
+        if (!stuExamMap.has(stu)) stuExamMap.set(stu, { exams: {} });
+        stuExamMap.get(stu).exams[sub] = {
           dateIdx: slot.dateIdx,
           periodNum: slot.periodNum,
           roomName: room.roomName,
@@ -1892,8 +1896,7 @@ function xlBuildClassAttendance(wb){
       ri++;
 
       clsStudents.forEach(stu => {
-        const k = stu.id || stu.name;
-        const examInfo = stuExamMap[k]?.exams || {};
+        const examInfo = stuExamMap.get(stu)?.exams || {};
         const bg = ri % 2 === 0 ? XC.WHT : XC.G50;
 
         xsc(ws.getCell(ri, 1), stu.id, { bg, align: 'center' });
@@ -2119,8 +2122,9 @@ async function downloadRoomAttendance(){
   if(!G.schedule||!G.settings){alert('먼저 시간표를 생성해주세요.');return;}
   try{
     const wb=new ExcelJS.Workbook();wb.creator='시험 시간표 자동 생성기';
+    xlBuildClassAttendance(wb);
     xlBuildRoomAttendance(wb);
-    await xlSave(wb,`${getExamTitle()}_교실별응시현황.xlsx`);
+    await xlSave(wb,`${getExamTitle()}_응시현황표.xlsx`);
   }catch(err){alert('다운로드 오류: '+err.message);}
 }
 
