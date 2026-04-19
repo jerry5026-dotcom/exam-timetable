@@ -545,12 +545,12 @@ function parseWideFormat(rows) {
     const cls = parseInt(row[clsCol]) || 0;
     const num = parseInt(row[numCol]) || 0;
     const id = String(row[idCol] || '').trim();
-    const enrolled = subjectCols
+    const enrolled = [...new Set(subjectCols
       .filter(sc => {
         const v = String(row[sc.col] || '').trim();
         return v !== '' && v !== '0' && v.toLowerCase() !== 'x' && v !== '-';
       })
-      .map(sc => sc.name);
+      .map(sc => sc.name))];
     if (enrolled.length > 0) {
       students.push({ id, name, cls, num, subjects: enrolled });
     }
@@ -1204,7 +1204,7 @@ function generateSchedule() {
 
       // 결과 표시
       if (errors.length > 0) {
-        resultDiv.innerHTML = errors.map(e => `<div class="status-box ${e.startsWith('❌') ? 'status-err' : 'status-warn'}">⚠️ ${e}</div>`).join('');
+        resultDiv.innerHTML = errors.map(e => `<div class="status-box ${e.startsWith('❌') ? 'status-err' : 'status-warn'}">${e}</div>`).join('');
       } else {
         resultDiv.innerHTML = `<div class="status-box status-ok">✅ 시간표 생성 완료! ${G.subjects.length}개 과목 전부 배정, ${G.students.length}명 학생, 미응시 0명</div>`;
       }
@@ -1415,6 +1415,7 @@ async function xlSave(wb,filename){
 function buildSlotSubMap(){
   const m={};
   G.subjects.forEach(sub=>{
+    if(G.schedule[sub]===undefined) return;
     const s=G.slots[G.schedule[sub]];
     const k=`${s.dateIdx}-${s.periodIdx}`;
     if(!m[k])m[k]=[];m[k].push(sub);
@@ -1476,6 +1477,7 @@ function xlBuildDB(wb){
 
   const rows=[];
   G.subjects.forEach(sub=>{
+    if(G.schedule[sub]===undefined) return;
     const slot=slots[G.schedule[sub]];
     (G.roomAssignments[sub]||[]).forEach(room=>{
       room.students.forEach((stu,si)=>{
@@ -1618,6 +1620,7 @@ function xlBuildSubjectSummary(wb){
   dates.forEach((date,di)=>{
     // 이 날짜에 배정된 과목
     const subsOnDay=G.subjects.filter(sub=>{
+      if(G.schedule[sub]===undefined) return false;
       const sl=slots[G.schedule[sub]];
       return sl.dateIdx===di;
     });
@@ -2511,6 +2514,7 @@ function applySnapshot(snap) {
   (snap.rooms || []).forEach(r => addRoom(r.name, r.isStudy));
 
   document.getElementById('coreGroupList').innerHTML = '';
+  coreGroupCount = 0;
   (snap.coreGroups || []).forEach(g => addCoreGroup(g.join(',')));
 
   G.students = snap.students || [];
